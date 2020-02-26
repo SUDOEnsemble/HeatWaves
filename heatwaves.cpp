@@ -2,7 +2,7 @@
 
 #include "al/app/al_App.hpp"
 #include "al/math/al_Random.hpp"
-#include "al/ui/al_ControlGUI.hpp"  // gui.draw(g)
+#include "al/ui/al_ControlGUI.hpp" // gui.draw(g)
 #include "al_ext/statedistribution/al_CuttleboneStateSimulationDomain.hpp"
 
 using namespace al;
@@ -15,7 +15,7 @@ Vec3f rv(float scale = 1.0f) {
   return Vec3f(rnd::uniformS(), rnd::uniformS(), rnd::uniformS()) * scale;
 }
 
-string slurp(string fileName);  // forward declaration
+string slurp(string fileName); // forward declaration
 
 //
 struct Agent : Pose {
@@ -28,7 +28,7 @@ struct DrawableAgent {
   Quatf orientation;
   // float hue;
 
-  void from(const Agent& that) {
+  void from(const Agent &that) {
     position.set(that.pos());
     orientation.set(that.quat());
   }
@@ -89,7 +89,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       //
       mesh.vertex(a.pos());
       mesh.normal(a.uf());
-      const Vec3f& up(a.uu());
+      const Vec3f &up(a.uu());
       mesh.color(up.x, up.y, up.z);
     }
 
@@ -203,23 +203,23 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
     // visualize the agents
     //
-    vector<Vec3f>& v(mesh.vertices());
-    vector<Vec3f>& n(mesh.normals());
-    vector<Color>& c(mesh.colors());
+    vector<Vec3f> &v(mesh.vertices());
+    vector<Vec3f> &n(mesh.normals());
+    vector<Color> &c(mesh.colors());
     for (unsigned i = 0; i < N; i++) {
       v[i] = state().agent[i].position;
       n[i] = -state().agent[i].orientation.toVectorZ();
-      const Vec3d& up(state().agent[i].orientation.toVectorY());
+      const Vec3d &up(state().agent[i].orientation.toVectorY());
       c[i].set(up.x, up.y, up.z);
     }
   }
 
-  void onDraw(Graphics& g) override {
+  void onDraw(Graphics &g) override {
     float f = state().background;
     g.clear(f, f, f);
-    gl::depthTesting(true);  // or g.depthTesting(true);
-    gl::blending(true);      // or g.blending(true);
-    gl::blendTrans();        // or g.blendModeTrans();
+    gl::depthTesting(true); // or g.depthTesting(true);
+    gl::blending(true);     // or g.blending(true);
+    gl::blendTrans();       // or g.blendModeTrans();
     g.shader(shader);
     g.shader().uniform("size", state().size * 0.03);
     g.shader().uniform("ratio", state().ratio * 0.2);

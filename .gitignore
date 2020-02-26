@@ -2,7 +2,8 @@
 bin/
 build/
 
-# toml
+# ignore toml so it doesn't conflict in the sphere
+*.toml
 
 # Prerequisites
 *.d
