@@ -12,20 +12,30 @@ using namespace std;
 string slurp(string fileName);  // forward declaration
 
 struct MyApp : public App {
-    ShaderProgram shader;
+    ShaderProgram brushShader;
     Mesh mesh;
 
     void onInit() override {}
 
     void onCreate() override {
-        shader.compile(slurp("../tetrahedron-vertex.glsl"),
-                       slurp("../tetrahedron-fragment.glsl"),
-                       slurp("../tetrahedron-geometry.glsl"));
+        brushShader.compile(slurp("../paint-vertex.glsl"),
+                            slurp("../paint-fragment.glsl"));
+
+        mesh.primitive(Mesh::LINES);
+        mesh.vertex(Vec3f(-0.2, -0.2, -2));
+        mesh.vertex(Vec3f(0.2, 0.2, -2));
+        mesh.vertex(Vec3f(-0.1, -0.2, -2));
+        mesh.vertex(Vec3f(0.2, -0.2, -2));
     }
 
     void onAnimate(double dt) override {}
 
-    void onDraw(Graphics &g) override { g.clear(0); }
+    void onDraw(Graphics &g) override {
+        g.clear(0);
+        g.shader(brushShader);
+        mesh.primitive(Mesh::LINES);
+        g.draw(mesh);
+    }
 
     void onSound(AudioIOData &io) override {}
 

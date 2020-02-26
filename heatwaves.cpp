@@ -81,7 +81,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                        slurp("../tetrahedron-fragment.glsl"),
                        slurp("../tetrahedron-geometry.glsl"));
 
-        mesh.primitive(Mesh::POINTS);
+        mesh.primitive(Mesh::LINES);
 
         for (int _ = 0; _ < N; _++) {
             Agent a;
