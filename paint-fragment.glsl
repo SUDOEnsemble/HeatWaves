@@ -145,8 +145,8 @@ vec3 colorBrushStrokeLine(vec2 uv, vec3 inpColor, vec4 brushColor, vec2 p1_,
     uvLine.x += (noise01(uvLine * 5.) - .5) *
                 .005;  // a sort of random waviness like individual strands are
                        // moving around
-    uvLine.x += (noise01(uvLine * res * 0.18) - 0.5) *
-                0.0035;  // HP random noise makes it look less scientific
+    // uvLine.x += (noise01(uvLine * res * 0.18) - 0.5) *
+    //             0.0035;  // HP random noise makes it look less scientific
 
     // calc distance to geometry. actually just do a straight line, then we will
     // round it out to create the line width.
