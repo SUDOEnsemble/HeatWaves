@@ -1,6 +1,14 @@
 // Raphael Radna
 // MAT-201B W20
 // Physics Tests for Final Project
+//
+// Added a forcefield within the cube {-4, -4, -4} and {4, 4, 4} with 512 (8^3)
+// individual cubic cells. If particles leave these bounds, they bounce back
+// (their velocity is inverted).
+//
+// TO DO:
+//    - Use perlin noise to initialize the force field
+//    - Rotate the vectors of the field a small amount each frame
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/graphics/al_Font.hpp"
@@ -29,6 +37,17 @@ using namespace std;
 struct Particle {
   Vec3f position, velocity, acceleration;
   float mass;
+
+  int fieldLocation() {
+    Vec3i q = position + 4;
+    return q.x + q.y * 8 + q.z * 64;
+  }
+
+  bool withinBounds() {
+    Vec3i q = position + 4;
+    return (q.x >= 0 && q.x < 8) && (q.y >= 0 && q.y < 8) &&
+           (q.z >= 0 && q.z < 8);
+  }
 };
 
 struct DrawableParticle {
@@ -64,6 +83,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
   Parameter dragFactor{"/dragFactor", "", 0.075, "", 0.01, 0.99};
   Parameter maxAccel{"/maxAccel", "", 10, "", 0, 20};
   Parameter scaleVal{"/scaleVal", "", 0.8, "", 0, 2};
+  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0, 2};
   ControlGUI gui;
 
   /* DistributedApp provides a parameter server. In fact it will
@@ -77,6 +97,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
              // the direct simulation states that we use to draw)
 
   vector<Particle> particle;
+  Vec3f field[512];
 
   void reset() { // empty all containers
     mesh.reset();
@@ -96,7 +117,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
     for (int _ = 0; _ < N; _++) { // create 1000 points, put it into mesh
       Particle p;
       float m = 10; // 25 + rnd::uniformS() * 25;
-      initParticle(p, rv(5), Vec3f(0), Vec3f(0), m);
+      initParticle(p, rv(4), Vec3f(0), Vec3f(0), m);
 
       mesh.vertex(p.position);
       mesh.color(rc());
@@ -109,6 +130,9 @@ class AlloApp : public DistributedAppWithState<SharedState> {
 
       particle.push_back(p);
     }
+
+    for (int i = 0; i < 512; i++)
+      field[i] = rv(1);
   }
 
   // You can keep a pointer to the cuttlebone domain
@@ -126,7 +150,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
     }
 
     gui << pointSize << timeStep << gravConst << dragFactor << maxAccel
-        << scaleVal;
+        << scaleVal << fieldStrength;
     gui.init();
 
     // DistributedApp provides a parameter server.
@@ -160,13 +184,15 @@ class AlloApp : public DistributedAppWithState<SharedState> {
 
       // Calculate forces
       //
-      // Vec3f flow = rv(10);
-      float phase = sinf((t / 60.0f) * 2 * PI);
-      Vec3f flow(phase * 10, 0, 0);
-
       for (int i = 0; i < N; i++) {
         Particle &p(particle.at(i));
-        p.acceleration += flow / p.mass;
+        unsigned l = p.fieldLocation();
+        if (p.withinBounds()) {
+          Vec3f flow = field[l] * (float)fieldStrength;
+          p.acceleration += flow / p.mass;
+        } else {
+          p.velocity *= -1;
+        }
       }
 
       /* for (int i = 0; i < N; i++) {
