@@ -79,7 +79,8 @@ void initParticle(Particle &p, Vec3f p_, Vec3f v_, Vec3f a_, float m_);
 class AlloApp : public DistributedAppWithState<SharedState> {
   Parameter pointSize{"/pointSize", "", 0.5, "", 0.0, 5.0};
   Parameter timeStep{"/timeStep", "", 0.05, "", 0.01, 0.6};
-  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0, 2};
+  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0, 10};
+  Parameter fieldRotation{"/fieldRotation", "", 0.01, "", 0, 1};
   ControlGUI gui;
 
   /* DistributedApp provides a parameter server. In fact it will
@@ -112,7 +113,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
 
     for (int _ = 0; _ < N; _++) { // create 1000 points, put it into mesh
       Particle p;
-      float m = 10; // 25 + rnd::uniformS() * 25;
+      float m = 10 + abs(rnd::uniformS()) * 10;
       initParticle(p, rv(4), Vec3f(0), Vec3f(0), m);
 
       mesh.vertex(p.position);
@@ -127,8 +128,10 @@ class AlloApp : public DistributedAppWithState<SharedState> {
       particle.push_back(p);
     }
 
-    for (int i = 0; i < 512; i++)
+    for (int i = 0; i < 512; i++) {
       field[i] = rv(1);
+      field[i].normalize();
+    }
   }
 
   // You can keep a pointer to the cuttlebone domain
@@ -145,13 +148,14 @@ class AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << pointSize << timeStep << fieldStrength;
+    gui << pointSize << timeStep << fieldStrength << fieldRotation;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << pointSize << timeStep << fieldStrength;
+    parameterServer() << pointSize << timeStep << fieldStrength
+                      << fieldRotation;
 
     navControl().useMouse(false);
 
@@ -188,6 +192,11 @@ class AlloApp : public DistributedAppWithState<SharedState> {
           p.velocity *= -1;
         }
       }
+
+      // Rotate force field vectors
+      //
+      for (int i = 0; i < 512; i++)
+        field[i] = field[i].rotate(PI * 2 * (float)fieldRotation, 0, 1);
 
       // Integration
       //
