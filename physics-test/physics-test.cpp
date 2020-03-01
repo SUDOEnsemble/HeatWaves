@@ -79,10 +79,6 @@ void initParticle(Particle &p, Vec3f p_, Vec3f v_, Vec3f a_, float m_);
 class AlloApp : public DistributedAppWithState<SharedState> {
   Parameter pointSize{"/pointSize", "", 0.5, "", 0.0, 5.0};
   Parameter timeStep{"/timeStep", "", 0.05, "", 0.01, 0.6};
-  Parameter gravConst{"/gravConst", "", 0.75, "", 0, 1};
-  Parameter dragFactor{"/dragFactor", "", 0.075, "", 0.01, 0.99};
-  Parameter maxAccel{"/maxAccel", "", 10, "", 0, 20};
-  Parameter scaleVal{"/scaleVal", "", 0.8, "", 0, 2};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0, 2};
   ControlGUI gui;
 
@@ -149,15 +145,13 @@ class AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << pointSize << timeStep << gravConst << dragFactor << maxAccel
-        << scaleVal << fieldStrength;
+    gui << pointSize << timeStep << fieldStrength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << pointSize << timeStep << gravConst << dragFactor
-                      << maxAccel << scaleVal;
+    parameterServer() << pointSize << timeStep << fieldStrength;
 
     navControl().useMouse(false);
 
@@ -194,36 +188,6 @@ class AlloApp : public DistributedAppWithState<SharedState> {
           p.velocity *= -1;
         }
       }
-
-      /* for (int i = 0; i < N; i++) {
-        for (int j = 1 + i; j < N; j++) {
-
-          rnd::Random<> rng;
-          auto rv = [&](float scale) -> Vec3f {
-            return Vec3f(rng.uniformS(), rng.uniformS(), rng.uniformS()) *
-                   scale;
-          };
-
-          Particle &p1(particle.at(i));
-          Particle &p2(particle.at(j));
-
-          Vec3f distance(p2.position - p1.position);
-          Vec3f gravityVal = gravConst * p1.mass * p2.mass *
-                             distance.normalize() / pow(distance.mag(), 2);
-
-          p1.acceleration += gravityVal * rv(scaleVal) / p1.mass;
-          p2.acceleration -= gravityVal * rv(scaleVal) / p2.mass;
-
-          // drag
-          //
-          p1.acceleration -= p1.velocity * dragFactor;
-
-          // limit acceleration
-          //
-          if (p1.acceleration.mag() > maxAccel)
-            p1.acceleration.normalize(maxAccel);
-        }
-      } */
 
       // Integration
       //
