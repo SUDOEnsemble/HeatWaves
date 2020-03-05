@@ -106,6 +106,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   ParameterInt k{"/k", "", 5, "", 1, 15};
   Parameter size{"/size", "", 1.0, "", 0.0, 2.0};
   Parameter ratio{"/ratio", "", 1.0, "", 0.0, 2.0};
+  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
   ControlGUI gui;
 
   ShaderProgram shader;
@@ -125,8 +126,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << moveRate << turnRate << localRadius << k << size << ratio;
+    gui << moveRate << turnRate << localRadius << k << size << ratio
+        << fieldStrength;
     gui.init();
+
+    // DistributedApp provides a parameter server.
+    // This links the parameters between "simulator" and "renderers"
+    // automatically
+    parameterServer() << moveRate << turnRate << localRadius << k << size
+                      << ratio << fieldStrength;
+
     navControl().useMouse(false);
 
     // compile shaders
@@ -228,9 +237,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         // boids
         agent[i].acceleration += agent[i].uf() * moveRate * 0.002;
         // force field
-        agent[i].acceleration += field.grid.at(agent[i].fieldIndex(field));
+        if (agent[i].withinBounds(field)) {
+          agent[i].acceleration += field.grid.at(agent[i].fieldIndex(field)) *
+                                   ((float)fieldStrength / 1000);
+        } else {
+          agent[i].velocity *= -1;
+          // add something that makes them turn as well
+        }
         // drag
-        agent[i].acceleration += -agent[i].velocity * 0.1;
+        agent[i].acceleration += -agent[i].velocity * 0.01;
       }
 
       // Rotate force field vectors
@@ -244,26 +259,26 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         agent[i].pos() += agent[i].velocity;
       }
 
-      for (unsigned i = 0; i < N; i++) {
-        Vec3d p = agent[i].pos();
+      // for (unsigned i = 0; i < N; i++) {
+      //   Vec3d p = agent[i].pos();
 
-        // WRAP! (make a toroidal space)
-        if (p.x > 1)
-          p.x -= 1;
-        if (p.y > 1)
-          p.y -= 1;
-        if (p.z > 1)
-          p.z -= 1;
-        if (p.x < 0)
-          p.x += 1;
-        if (p.y < 0)
-          p.y += 1;
-        if (p.z < 0)
-          p.z += 1;
+      //   // WRAP! (make a toroidal space)
+      //   if (p.x > 1)
+      //     p.x -= 1;
+      //   if (p.y > 1)
+      //     p.y -= 1;
+      //   if (p.z > 1)
+      //     p.z -= 1;
+      //   if (p.x < 0)
+      //     p.x += 1;
+      //   if (p.y < 0)
+      //     p.y += 1;
+      //   if (p.z < 0)
+      //     p.z += 1;
 
-        agent[i].pos(p);
-        space.move(i, agent[i].pos() * space.dim());
-      }
+      //   agent[i].pos(p);
+      //   space.move(i, agent[i].pos() * space.dim());
+      // }
 
       // Send positions over OSC
       //
