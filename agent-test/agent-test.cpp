@@ -6,6 +6,7 @@
 // distributed app, add force field from 'physics-test.cpp'.
 //
 // TO DO:
+// – builds, but crashes
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
@@ -22,16 +23,26 @@ using namespace al;
 using namespace std;
 
 Vec3f rv() { return Vec3f(rnd::uniform(), rnd::uniform(), rnd::uniform()); }
+Vec3f rvs() { return Vec3f(rnd::uniformS(), rnd::uniformS(), rnd::uniformS()); }
 
 string slurp(string fileName);
 
-struct ForceField {
-  int dimension;
-  Vec3f center;
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
+            float curve);
 
-  ForceField(int d_) {
-    dimension = d_;
-    center = Vec3f(0.5, 0.5, 0.5);
+struct ForceField {
+  int resolution; // number of divisions per axis
+  vector<Vec3f> grid;
+  // Vec3f center;
+
+  ForceField(int r_) {
+    resolution = r_;
+    for (int i = 0; i < pow(resolution, 3); i++) {
+      Vec3f f = rvs();
+      f.normalize();
+      grid.push_back(f);
+    }
+    // center = Vec3f(0.5, 0.5, 0.5);
   }
 };
 
@@ -40,21 +51,31 @@ struct Agent : Pose {
   Vec3f velocity, acceleration;
   unsigned flockCount{1};
 
-  // get index of voxel containing particle as an int from 0-511
+  // get address of container voxel
   //
-  int fieldLocation(ForceField &f) {
-    int &dim(f.dimension);
-    Vec3i q = pos() + dim / 2;
-    return q.x + q.y * dim + q.z * dim * dim;
+  Vec3i fieldAddress(ForceField &f) {
+    int &res(f.resolution);
+    float x = scale(pos().x, 0, 1, 0, res, 1);
+    float y = scale(pos().y, 0, 1, 0, res, 1);
+    float z = scale(pos().z, 0, 1, 0, res, 1);
+    return Vec3i(floor(x), floor(y), floor(z));
   }
 
-  // return true if position within 8x8x8 cube centered at origin
+  // get index of container voexl as an int between 0 and f.resolution^3
+  //
+  int fieldIndex(ForceField &f) {
+    int &res(f.resolution);
+    Vec3i fA = fieldAddress(f);
+    return fA.x + fA.y * res + fA.z * res * res;
+  }
+
+  // return true if agent within {1, 1, 1} cube cornered on the origin
   //
   bool withinBounds(ForceField &f) {
-    int &dim(f.dimension);
-    Vec3i q = pos() + dim / 2;
-    return (q.x >= 0 && q.x < dim) && (q.y >= 0 && q.y < dim) &&
-           (q.z >= 0 && q.z < dim);
+    int &res(f.resolution);
+    Vec3i fA = fieldAddress(f);
+    return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) &&
+           (fA.z >= 0 && fA.z < res);
   }
 };
 
@@ -91,6 +112,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Mesh mesh;
 
   vector<Agent> agent;
+  ForceField field = ForceField(8);
 
   std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
       cuttleboneDomain;
@@ -118,7 +140,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       Agent a;
       a.pos(rv());
       space.move(i, a.pos() * space.dim());
-      cout << space.object(i).hash << endl;
       a.faceToward(rv());
       agent.push_back(a);
       //
@@ -128,7 +149,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       mesh.color(up.x, up.y, up.z);
     }
 
-    nav().pos(0, 0, 10);
+    nav().pos(0.5, 0.5, 5);
   }
 
   float t = 0;
@@ -143,6 +164,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         cout << frameCount << "fps ";
         frameCount = 0;
       }
+
+      // Setup OSC
+      //
+      short port = 12345;
+      const char *host = "127.0.0.1";
+      osc::Send osc;
+      osc.open(port, host);
 
       for (unsigned i = 0; i < N; i++) {
         agent[i].center = agent[i].pos();
@@ -194,12 +222,19 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 * turnRate);
       }
 
-      // enact the Boids algorithm
+      // Calculate forces
       //
       for (int i = 0; i < N; i++) {
+        // boids
         agent[i].acceleration += agent[i].uf() * moveRate * 0.002;
-        agent[i].acceleration += -agent[i].velocity * 0.1; // drag
+        // force field
+        agent[i].acceleration += field.grid.at(agent[i].fieldIndex(field));
+        // drag
+        agent[i].acceleration += -agent[i].velocity * 0.1;
       }
+
+      // Rotate force field vectors
+      //
 
       // Integration
       //
@@ -228,6 +263,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         agent[i].pos(p);
         space.move(i, agent[i].pos() * space.dim());
+      }
+
+      // Send positions over OSC
+      //
+      for (unsigned short i = 0; i < N; i++) {
+        Vec3d &pos(agent[i].pos());
+        osc.send("/pos", i, pos.x, pos.y, pos.z);
       }
 
       // Copy all the agents into shared state;
@@ -287,4 +329,14 @@ string slurp(string fileName) {
     returnValue += line + "\n";
   }
   return returnValue;
+}
+
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
+            float curve) {
+  float normValue = (value - inLow) / (inHigh - inLow);
+  if (curve == 1) {
+    return normValue * (outHigh - outLow) + outLow;
+  } else {
+    return (pow(normValue, curve) * (outHigh - outLow)) + outLow;
+  }
 }
