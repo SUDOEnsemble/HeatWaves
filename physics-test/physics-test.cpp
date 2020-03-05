@@ -14,6 +14,7 @@
 #include "al/graphics/al_Font.hpp"
 #include "al/graphics/al_Shapes.hpp"
 #include "al/math/al_Random.hpp"
+#include "al/system/al_Time.hpp"
 #include "al/ui/al_ControlGUI.hpp"
 #include "al/ui/al_Parameter.hpp"
 #include "al_ext/statedistribution/al_CuttleboneStateSimulationDomain.hpp"
@@ -25,6 +26,7 @@ using namespace al;
 
 using namespace std;
 
+#define DURATION 1200
 #define PI 3.141592654
 
 // Distributed App provides a simple way to share states and parameters between
@@ -38,11 +40,15 @@ struct Particle {
   Vec3f position, velocity, acceleration;
   float mass;
 
+  // get index of voxel containing particle as an int from 0-511
+  //
   int fieldLocation() {
     Vec3i q = position + 4;
     return q.x + q.y * 8 + q.z * 64;
   }
 
+  // return true if position within 8x8x8 cube centered at origin
+  //
   bool withinBounds() {
     Vec3i q = position + 4;
     return (q.x >= 0 && q.x < 8) && (q.y >= 0 && q.y < 8) &&
@@ -70,6 +76,15 @@ Vec3f rv(float scale) {
 
 string slurp(string fileName); // forward declaration
 
+Vec2f valuePair(int *f, unsigned index = 0) {
+  Vec2i v;
+  v.x = *(f + index);
+  v.y = *(f + 1 + index);
+  // cout << *(f + index) << " " << *(f + 1 + index) << endl;
+  // cout << v << endl;
+  return v;
+}
+
 // must do this instead of including a constructor in Particle
 //
 void initParticle(Particle &p, Vec3f p_, Vec3f v_, Vec3f a_, float m_);
@@ -82,6 +97,9 @@ class AlloApp : public DistributedAppWithState<SharedState> {
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0, 10};
   Parameter fieldRotation{"/fieldRotation", "", 0.01, "", 0, 1};
   ControlGUI gui;
+  Clock clock;
+
+  int foo[4] = {0, 10, 100, 1000};
 
   /* DistributedApp provides a parameter server. In fact it will
    * crash if you have a parameter server with the same port,
@@ -99,6 +117,8 @@ class AlloApp : public DistributedAppWithState<SharedState> {
   void reset() { // empty all containers
     mesh.reset();
     particle.clear();
+
+    cout << valuePair(foo) << endl;
 
     // c++11 "lambda" function
     // seed random number generators to maintain determinism
@@ -121,7 +141,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
       // set texture coordinate to be the size of the point (related to the
       // mass) using a simplified volume size relationship -> V = 4/3 * pi * r^3
       // pow is power -> m^(1/3)
-      mesh.texCoord((4 / 3) * 3.14 * pow(p.mass, 1.0f / 3), 0);
+      mesh.texCoord((4 / 3) * PI * pow(p.mass, 1.0f / 3), 0);
       // pass in an s, t (like x, y)-> where on an image do we want to grab the
       // color from for this pixel (2D texture) normalized between 0 and 1
 
@@ -174,11 +194,21 @@ class AlloApp : public DistributedAppWithState<SharedState> {
   void onAnimate(double dt) override {
     if (cuttleboneDomain->isSender()) {
 
+      clock.update();
+      // cout << clock.now() << endl;
+
       dt = timeStep;
 
       if (t >= 1 / (float)frequency * 60)
         t = 0;
       t++;
+
+      // Setup OSC
+      //
+      short port = 12345;
+      const char *host = "127.0.0.1";
+      osc::Send osc;
+      osc.open(port, host);
 
       // Calculate forces
       //
@@ -211,6 +241,13 @@ class AlloApp : public DistributedAppWithState<SharedState> {
         // and counted already
         //
         p.acceleration.zero();
+      }
+
+      // Send positions over OSC
+      //
+      for (unsigned short i = 0; i < N; i++) {
+        Vec3f &pos(particle.at(i).position);
+        osc.send("/pos", i, pos.x, pos.y, pos.z);
       }
 
       // Copy all the agents into shared state;
@@ -255,6 +292,7 @@ class AlloApp : public DistributedAppWithState<SharedState> {
     gl::blendTrans();
     gl::depthTesting(true);
     g.draw(mesh);
+    vsync(true);
 
     // Draw th GUI on the simulator only
     if (cuttleboneDomain->isSender()) {
