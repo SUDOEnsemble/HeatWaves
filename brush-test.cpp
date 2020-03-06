@@ -3,7 +3,7 @@
 #include <vector>
 #include "al/app/al_App.hpp"
 #include "al/math/al_Random.hpp"
-#include "al/ui/al_ControlGUI.hpp"  // gui.draw(g)
+#include "al/ui/al_ControlGUI.hpp"
 #include "al_ext/statedistribution/al_CuttleboneStateSimulationDomain.hpp"
 
 using namespace al;
@@ -15,25 +15,33 @@ struct MyApp : public App {
     ShaderProgram brushShader;
     Mesh mesh;
 
+    float length = 20;
+
     void onInit() override {}
 
     void onCreate() override {
         brushShader.compile(slurp("../paint-vertex.glsl"),
-                            slurp("../paint-fragment.glsl"));
+                            slurp("../paint-fragment.glsl"),
+                            slurp("../paint-geometry.glsl"));
 
-        mesh.primitive(Mesh::LINES);
-        mesh.vertex(Vec3f(-0.2, -0.2, -2));
-        mesh.vertex(Vec3f(0.2, 0.2, -2));
-        mesh.vertex(Vec3f(-0.1, -0.2, -2));
-        mesh.vertex(Vec3f(0.2, -0.2, -2));
+        mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
+        for (int i = 0; i < length; i++) {
+            mesh.vertex(((i / length) * 2) - 1, sin(i / (length / 5)), 0);
+            mesh.texCoord(0.3, 0.0);
+            mesh.color((length - i) / length, 0, i / length);
+        };
+
+        nav().pos(0, 0, 5);
     }
 
-    void onAnimate(double dt) override {}
+    void onAnimate(double dt) override { nav().faceToward(0, 1); }
 
     void onDraw(Graphics &g) override {
         g.clear(0);
+        gl::depthTesting(true);  // g.depthTesting(true);
         g.shader(brushShader);
-        mesh.primitive(Mesh::LINES);
+        // g.shader().uniform("size", 1.0);
+        // g.shader().uniform("ratio", 0.2);
         g.draw(mesh);
     }
 
