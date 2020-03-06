@@ -42,7 +42,8 @@ struct MyApp : public App {
             mesh.vertices()[i].set(mesh.vertices()[i - 1]);
         }
 
-        mesh.vertices()[0].set(Vec3f(sin(time), cos(time), cos(2 * time)));
+        mesh.vertices()[0].set(
+            Vec3f(sin(time), sin(2 * time + 0.2), cos(4 * time)));
 
         // std::cout << mesh.vertices().size() << std::endl;
         nav().faceToward(0, 1);
