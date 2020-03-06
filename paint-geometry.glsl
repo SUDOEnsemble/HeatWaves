@@ -54,16 +54,16 @@ void main() {
     vec4 c = gl_in[2].gl_Position;
     vec4 d = gl_in[3].gl_Position;
 
-    const float r = 0.5;
+    const float r = 0.3;
 
     vec4 tangent = vec4(
         normalize(normalize(c.xyz - b.xyz) + normalize(b.xyz - a.xyz)), 0.0);
-    vec4 miter = vec4(-tangent.y, tangent.x, tangent.z, 0.0);
+    vec4 miter = vec4(-tangent.y, tangent.x, 0.0, 0.0);
     vec4 dist = vec4(normalize(cross(miter.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
 
     vec4 tangent2 = vec4(
         normalize(normalize(d.xyz - c.xyz) + normalize(c.xyz - b.xyz)), 0.0);
-    vec4 miter2 = vec4(-tangent2.y, tangent2.x, tangent2.z, 0.0);
+    vec4 miter2 = vec4(-tangent2.y, tangent2.x, 0.0, 0.0);
     vec4 dist2 =
         vec4(normalize(cross(miter2.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
 

@@ -15,7 +15,8 @@ struct MyApp : public App {
     ShaderProgram brushShader;
     Mesh mesh;
 
-    float length = 20;
+    float length = 50;
+    float time = 0;
 
     void onInit() override {}
 
@@ -26,7 +27,7 @@ struct MyApp : public App {
 
         mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
         for (int i = 0; i < length; i++) {
-            mesh.vertex(((i / length) * 2) - 1, sin(i / (length / 5)), 0);
+            mesh.vertex(sin(-i / length), cos(-i / length), 0);
             mesh.texCoord(0.3, 0.0);
             mesh.color((length - i) / length, 0, i / length);
         };
@@ -34,7 +35,18 @@ struct MyApp : public App {
         nav().pos(0, 0, 5);
     }
 
-    void onAnimate(double dt) override { nav().faceToward(0, 1); }
+    void onAnimate(double dt) override {
+        time += dt;
+
+        for (int i = mesh.vertices().size() - 1; i > 0; i--) {
+            mesh.vertices()[i].set(mesh.vertices()[i - 1]);
+        }
+
+        mesh.vertices()[0].set(Vec3f(sin(time), cos(time), cos(2 * time)));
+
+        // std::cout << mesh.vertices().size() << std::endl;
+        nav().faceToward(0, 1);
+    }
 
     void onDraw(Graphics &g) override {
         g.clear(0);
