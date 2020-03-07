@@ -1,12 +1,10 @@
 // Raphael Radna
 // MAT-201B W20
-// Agent Tests for Final Project
+// Flock Tests for Final Project
 //
-// Convert hashspace boid example with velocity and acceleration into a
-// distributed app, add force field from 'physics-test.cpp'.
+// Convert "agent-test.cpp" to support multiple "flocks" of agents
 //
 // TO DO:
-// – restructure code to support multiple groups of agents
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
@@ -48,7 +46,7 @@ struct ForceField {
 };
 
 struct Agent : Pose {
-  Vec3f heading, center, home;
+  Vec3f heading, center;
   Vec3f velocity, acceleration;
   unsigned flockCount{1};
 
@@ -85,7 +83,20 @@ struct Flock {
   float hue;
   vector<Agent> agent;
   unsigned population;
-}
+
+  Flock(Vec3f home_, float hue_, unsigned population_) {
+    home = home_;
+    hue = hue_;
+    population = population_;
+
+    for (int i = 0; i < population; i++) {
+      Agent a;
+      a.pos(rvU());
+      a.faceToward(rvU());
+      agent.push_back(a);
+    }
+  }
+};
 
 struct DrawableAgent {
   Vec3f position;
@@ -120,7 +131,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   ShaderProgram shader;
   Mesh mesh;
 
-  vector<Agent> agent;
+  vector<Flock> flock;
   ForceField field = ForceField(8);
 
   std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
@@ -153,17 +164,18 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
     mesh.primitive(Mesh::POINTS);
 
-    for (int i = 0; i < N; i++) {
-      Agent a;
-      a.pos(rvU());
-      space.move(i, a.pos() * space.dim());
-      a.faceToward(rvU());
-      agent.push_back(a);
-      //
-      mesh.vertex(a.pos());
-      mesh.normal(a.uf());
-      const Vec3f &up(a.uu());
-      mesh.color(up.x, up.y, up.z);
+    int n = 0;
+    for (int i = 0; i < 2; i++) {
+      Flock f = Flock(Vec3f((float)i, (float)i, float(i)), 0.0f, 500);
+      for (Agent a : f.agent) {
+        space.move(n, a.pos() * space.dim());
+        mesh.vertex(a.pos());
+        mesh.normal(a.uf());
+        const Vec3f &up(a.uu());
+        mesh.color(up.x, up.y, up.z);
+        n++;
+      }
+      flock.push_back(f);
     }
 
     nav().pos(0.5, 0.5, 5);
@@ -189,129 +201,142 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       osc::Send osc;
       osc.open(port, host);
 
-      for (unsigned i = 0; i < N; i++) {
-        agent[i].center = agent[i].pos();
-        agent[i].heading = agent[i].uf();
-        agent[i].home = Vec3f(0.5, 0.5, 0.5);
-        agent[i].flockCount = 1;
-        agent[i].acceleration.zero();
-      }
-
-      float sum = 0;
-      for (int i = 0; i < N; i++) {
-        HashSpace::Query query(k);
-        int results = query(space, agent[i].pos() * space.dim(),
-                            space.maxRadius() * localRadius);
-        for (int j = 0; j < results; j++) {
-          int id = query[j]->id;
-          agent[i].heading += agent[id].uf();
-          agent[i].center += agent[id].pos();
-          agent[i].flockCount++;
-        }
-        sum += agent[i].flockCount;
-      }
-
-      if (frameCount == 0) //
-        cout << sum / N << "nn" << endl;
-
-      for (unsigned i = 0; i < N; i++) {
-        if (agent[i].flockCount < 1) {
-          printf("shit is f-cked\n");
-          fflush(stdout);
-          exit(1);
-        }
-
-        // if (agent[i].flockCount == 1) {
-        //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 * turnRate);
-        //   continue;
-        // }
-
-        // make averages
-        // agent[i].center /= agent[i].flockCount;
-        // agent[i].heading /= agent[i].flockCount;
-
-        // float distance = (agent[i].pos() - agent[i].center).mag();
-
-        // alignment: steer towards the average heading of local flockmates
-        //
-        // agent[i].faceToward(agent[i].pos() + agent[i].heading,
-        //                     0.003 * turnRate);
-        // agent[i].faceToward(agent[i].center, 0.003 * turnRate);
-        // agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 *
-        // turnRate);
-
-        // steer towards the home location
-        //
-        agent[i].faceToward(agent[i].home, 0.3 * turnRate);
-
-        // change steering based on force field?
-      }
-
-      // Calculate forces
-      //
-      for (int i = 0; i < N; i++) {
-        // agency
-        agent[i].acceleration += agent[i].uf() * moveRate * 0.001;
-        // force field
-        if (agent[i].withinBounds(field)) {
-          agent[i].acceleration += field.grid.at(agent[i].fieldIndex(field)) *
-                                   ((float)fieldStrength / 1000);
-        } else {
-          agent[i].velocity *= -1;
-        }
-        // drag
-        agent[i].acceleration += -agent[i].velocity * 0.01;
-      }
-
       // Rotate force field vectors
       //
 
-      // Integration
-      //
-      for (int i = 0; i < N; i++) {
-        // "backward" Euler integration
-        agent[i].velocity += agent[i].acceleration;
-        agent[i].pos() += agent[i].velocity;
-      }
+      int sharedIndex = 0;
+      for (Flock f : flock) {
 
-      /*       for (unsigned i = 0; i < N; i++) {
-              Vec3d p = agent[i].pos();
+        // Reset agent quantities before calculating frame
+        //
+        for (unsigned i = 0; i < f.population; i++) {
+          f.agent[i].center = f.agent[i].pos();
+          f.agent[i].heading = f.agent[i].uf();
+          f.agent[i].flockCount = 1;
+          f.agent[i].acceleration.zero();
+        }
 
-              // WRAP! (make a toroidal space)
-              if (p.x > 1)
-                p.x -= 1;
-              if (p.y > 1)
-                p.y -= 1;
-              if (p.z > 1)
-                p.z -= 1;
-              if (p.x < 0)
-                p.x += 1;
-              if (p.y < 0)
-                p.y += 1;
-              if (p.z < 0)
-                p.z += 1;
+        // Search for neighbors
+        //
+        float sum = 0;
+        for (int i = 0; i < f.population; i++) {
+          HashSpace::Query query(k);
+          int results = query(space, f.agent[i].pos() * space.dim(),
+                              space.maxRadius() * localRadius);
+          for (int j = 0; j < results; j++) {
+            int id = query[j]->id;
+            f.agent[i].heading += f.agent[id].uf();
+            f.agent[i].center += f.agent[id].pos();
+            f.agent[i].flockCount++;
+          }
+          sum += f.agent[i].flockCount;
+        }
 
-              agent[i].pos(p);
-              space.move(i, agent[i].pos() * space.dim());
-            } */
+        if (frameCount == 0) //
+          cout << sum / f.population << "nn" << endl;
 
-      // Send positions over OSC
-      //
-      for (unsigned short i = 0; i < N; i++) {
-        Vec3d &pos(agent[i].pos());
-        osc.send("/pos", i, (float)pos.x, (float)pos.y, (float)pos.z);
-      }
+        // Calculate agent behaviors
+        //
+        for (unsigned i = 0; i < f.population; i++) {
+          if (f.agent[i].flockCount < 1) {
+            printf("shit is f-cked\n");
+            fflush(stdout);
+            exit(1);
+          }
 
-      // Copy all the agents into shared state;
-      //
-      for (unsigned i = 0; i < N; i++) {
-        state().agent[i].from(agent[i]);
+          // if (agent[i].flockCount == 1) {
+          //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 * turnRate);
+          //   continue;
+          // }
+
+          // make averages
+          // agent[i].center /= agent[i].flockCount;
+          // agent[i].heading /= agent[i].flockCount;
+
+          // float distance = (agent[i].pos() - agent[i].center).mag();
+
+          // alignment: steer towards the average heading of local flockmates
+          //
+          // agent[i].faceToward(agent[i].pos() + agent[i].heading,
+          //                     0.003 * turnRate);
+          // agent[i].faceToward(agent[i].center, 0.003 * turnRate);
+          // agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 *
+          // turnRate);
+
+          // steer towards the home location
+          //
+          f.agent[i].faceToward(f.home, 0.3 * turnRate);
+
+          // change steering based on force field?
+        }
+
+        // Apply forces
+        //
+        for (int i = 0; i < f.population; i++) {
+          // agency
+          f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
+          // force field
+          // if (flock1.agent[i].withinBounds(field)) {
+          //   flock1.agent[i].acceleration +=
+          //       field.grid.at(flock1.agent[i].fieldIndex(field)) *
+          //       ((float)fieldStrength / 1000);
+          // } else {
+          //   flock1.agent[i].velocity *= -1;
+          // }
+          // drag
+          f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
+        }
+
+        // Integration
+        //
+        for (int i = 0; i < f.population; i++) {
+          // "backward" Euler integration
+          //
+          f.agent[i].velocity += f.agent[i].acceleration;
+          f.agent[i].pos() += f.agent[i].velocity;
+        }
+
+        /*       for (unsigned i = 0; i < ; i++) {
+                Vec3d p = agent[i].pos();
+
+                // WRAP! (make a toroidal space)
+                if (p.x > 1)
+                  p.x -= 1;
+                if (p.y > 1)
+                  p.y -= 1;
+                if (p.z > 1)
+                  p.z -= 1;
+                if (p.x < 0)
+                  p.x += 1;
+                if (p.y < 0)
+                  p.y += 1;
+                if (p.z < 0)
+                  p.z += 1;
+
+                agent[i].pos(p);
+                space.move(i, agent[i].pos() * space.dim());
+              } */
+
+        // Send positions over OSC
+        //
+        for (unsigned short i = 0; i < f.population; i++) {
+          Vec3d &pos(f.agent[i].pos());
+          osc.send("/pos", i, (float)pos.x, (float)pos.y, (float)pos.z);
+        }
+
+        // Copy all the agents into shared state;
+        //
+        for (unsigned i = 0; i < f.population; i++) {
+          state().agent[sharedIndex].from(f.agent[i]);
+          sharedIndex++;
+        }
       }
       state().cameraPose.set(nav());
       state().background = 0.1;
       state().size = size.get();
       state().ratio = ratio.get();
     } else {
+
       // use the camera position from the simulator
       //
       nav().set(state().cameraPose);
