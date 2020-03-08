@@ -29,6 +29,8 @@ string slurp(string fileName);
 float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
             float curve);
 
+Vec3f polToCar(float r, float t);
+
 struct ForceField {
   int resolution; // number of divisions per axis
   vector<Vec3f> grid;
@@ -49,6 +51,11 @@ struct Agent : Pose {
   Vec3f heading, center;
   Vec3f velocity, acceleration;
   unsigned flockCount{1};
+  bool active;
+
+  void setActive(bool b) { active = b; }
+
+  bool isActive() { return active; }
 
   // get address of container voxel
   //
@@ -79,20 +86,21 @@ struct Agent : Pose {
 };
 
 struct Flock {
-  Vec3f home; // instead of agents having it
+  Vec3f home;
+  unsigned population;
   float hue;
   vector<Agent> agent;
-  unsigned population;
 
-  Flock(Vec3f home_, float hue_, unsigned population_) {
+  Flock(Vec3f home_, float population_, unsigned hue_) {
     home = home_;
-    hue = hue_;
     population = population_;
+    hue = hue_;
 
     for (int i = 0; i < population; i++) {
       Agent a;
-      a.pos(rvU());
+      a.pos(home);
       a.faceToward(rvU());
+      a.setActive(true);
       agent.push_back(a);
     }
   }
@@ -101,15 +109,17 @@ struct Flock {
 struct DrawableAgent {
   Vec3f position;
   Quatf orientation;
+  bool active;
   // float hue;
 
   void from(const Agent &that) {
     position.set(that.pos());
     orientation.set(that.quat());
+    active = that.active;
   }
 };
 
-#define N (1000)
+#define N (500)
 HashSpace space(6, N);
 struct SharedState {
   Pose cameraPose;
@@ -121,7 +131,7 @@ struct SharedState {
 struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
   Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
-  Parameter localRadius{"/localRadius", "", 0.4, "", 0.01, 0.9};
+  Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
   ParameterInt k{"/k", "", 5, "", 1, 15};
   Parameter size{"/size", "", 1.0, "", 0.0, 2.0};
   Parameter ratio{"/ratio", "", 1.0, "", 0.0, 2.0};
@@ -165,10 +175,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     mesh.primitive(Mesh::POINTS);
 
     int n = 0;
-    for (int i = 0; i < 2; i++) {
-      Flock f = Flock(Vec3f((float)i, (float)i, float(i)), 0.0f, 500);
+    for (int i = 0; i < 50; i++) {
+      float t = i / 50.0f * M_PI * 2;
+      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), 10, 0.0f);
       for (Agent a : f.agent) {
-        space.move(i, a.pos() * space.dim()); // crashes when using "n"
+        space.move(n, a.pos() * space.dim()); // crashes when using "n"?
         mesh.vertex(a.pos());
         mesh.normal(a.uf());
         const Vec3f &up(a.uu());
@@ -190,7 +201,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       frameCount++;
       if (t > 1) {
         t -= 1;
-        cout << frameCount << "fps ";
+        cout << frameCount << "fps " << endl;
         frameCount = 0;
       }
 
@@ -206,131 +217,119 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       // ???
 
       int sharedIndex = 0;
-
       for (int n = 0; n < flock.size(); n++) {
         Flock &f(flock[n]);
         //   for (Flock f : flock) {
 
         // Reset agent quantities before calculating frame
         //
-        for (unsigned i = 0; i < f.population; i++) {
-          f.agent[i].center = f.agent[i].pos();
-          f.agent[i].heading = f.agent[i].uf();
-          f.agent[i].flockCount = 1;
-          f.agent[i].acceleration.zero();
+        for (int i = 0; i < f.population; i++) {
+          if (f.agent[i].isActive() == true) {
+            f.agent[i].center = f.agent[i].pos();
+            f.agent[i].heading = f.agent[i].uf();
+            f.agent[i].flockCount = 1;
+            f.agent[i].acceleration.zero();
+          }
         }
 
         // Search for neighbors
         //
         float sum = 0;
         for (int i = 0; i < f.population; i++) {
-          HashSpace::Query query(k);
-          int results = query(space, f.agent[i].pos() * space.dim(),
-                              space.maxRadius() * localRadius);
-          for (int j = 0; j < results; j++) {
-            int id = query[j]->id;
-            f.agent[i].heading += f.agent[id].uf();
-            f.agent[i].center += f.agent[id].pos();
-            f.agent[i].flockCount++;
+          if (f.agent[i].isActive() == true) {
+            HashSpace::Query query(k);
+            int results = query(space, f.agent[i].pos() * space.dim(),
+                                space.maxRadius() * localRadius);
+            for (int j = 0; j < results; j++) {
+              int id = query[j]->id;
+              f.agent[i].heading += f.agent[id].uf();
+              f.agent[i].center += f.agent[id].pos();
+              f.agent[i].flockCount++;
+            }
+            sum += f.agent[i].flockCount;
           }
-          sum += f.agent[i].flockCount;
         }
 
-        if (frameCount == 0) //
-          cout << sum / f.population << "nn" << endl;
+        // if (frameCount == 0) //
+        //   cout << sum / f.population << "nn" << endl;
 
         // Calculate agent behaviors
         //
-        for (unsigned i = 0; i < f.population; i++) {
-          if (f.agent[i].flockCount < 1) {
-            printf("shit is f-cked\n");
-            fflush(stdout);
-            exit(1);
+        for (int i = 0; i < f.population; i++) {
+          if (f.agent[i].isActive() == true) {
+            if (f.agent[i].flockCount < 1) {
+              printf("shit is f-cked\n");
+              fflush(stdout);
+              exit(1);
+            }
+
+            // if (agent[i].flockCount == 1) {
+            //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 * turnRate);
+            //   continue;
+            // }
+
+            // make averages
+            // agent[i].center /= agent[i].flockCount;
+            // agent[i].heading /= agent[i].flockCount;
+
+            // float distance = (agent[i].pos() - agent[i].center).mag();
+
+            // alignment: steer towards the average heading of local flockmates
+            //
+            // agent[i].faceToward(agent[i].pos() + agent[i].heading,
+            //                     0.003 * turnRate);
+            // agent[i].faceToward(agent[i].center, 0.003 * turnRate);
+            // agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 *
+            // turnRate);
+
+            // steer towards the home location
+            //
+            f.agent[i].faceToward(f.home, 0.3 * turnRate);
+
+            // change steering based on force field?
           }
-
-          // if (agent[i].flockCount == 1) {
-          //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 * turnRate);
-          //   continue;
-          // }
-
-          // make averages
-          // agent[i].center /= agent[i].flockCount;
-          // agent[i].heading /= agent[i].flockCount;
-
-          // float distance = (agent[i].pos() - agent[i].center).mag();
-
-          // alignment: steer towards the average heading of local flockmates
-          //
-          // agent[i].faceToward(agent[i].pos() + agent[i].heading,
-          //                     0.003 * turnRate);
-          // agent[i].faceToward(agent[i].center, 0.003 * turnRate);
-          // agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 *
-          // turnRate);
-
-          // steer towards the home location
-          //
-          f.agent[i].faceToward(f.home, 0.3 * turnRate);
-
-          // change steering based on force field?
         }
 
         // Apply forces
         //
         for (int i = 0; i < f.population; i++) {
-          // agency
-          //
-          f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
+          if (f.agent[i].isActive() == true) {
+            // agency
+            //
+            f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
 
-          // force field
-          //
-          // if (flock1.agent[i].withinBounds(field)) {
-          //   flock1.agent[i].acceleration +=
-          //       field.grid.at(flock1.agent[i].fieldIndex(field)) *
-          //       ((float)fieldStrength / 1000);
-          // } else {
-          //   flock1.agent[i].velocity *= -1;
-          // }
+            // force field
+            //
+            if (f.agent[i].withinBounds(field)) {
+              f.agent[i].acceleration +=
+                  field.grid.at(f.agent[i].fieldIndex(field)) *
+                  ((float)fieldStrength / 1000);
+            }
 
-          // drag
-          //
-          f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
+            // drag
+            //
+            f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
+          }
         }
 
         // Integration
         //
         for (int i = 0; i < f.population; i++) {
-          // "backward" Euler integration
-          //
-          f.agent[i].velocity += f.agent[i].acceleration;
-          f.agent[i].pos() += f.agent[i].velocity;
+          if (f.agent[i].isActive() == true) {
+            // "backward" Euler integration
+            //
+            f.agent[i].velocity += f.agent[i].acceleration;
+            f.agent[i].pos() += f.agent[i].velocity;
+          }
         }
-
-        /*       for (unsigned i = 0; i < ; i++) {
-                Vec3d p = agent[i].pos();
-
-                // WRAP! (make a toroidal space)
-                if (p.x > 1)
-                  p.x -= 1;
-                if (p.y > 1)
-                  p.y -= 1;
-                if (p.z > 1)
-                  p.z -= 1;
-                if (p.x < 0)
-                  p.x += 1;
-                if (p.y < 0)
-                  p.y += 1;
-                if (p.z < 0)
-                  p.z += 1;
-
-                agent[i].pos(p);
-                space.move(i, agent[i].pos() * space.dim());
-              } */
 
         // Send positions over OSC
         //
-        for (unsigned short i = 0; i < f.population; i++) {
-          Vec3d &pos(f.agent[i].pos());
-          osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
+        for (int i = 0; i < f.population; i++) {
+          if (f.agent[i].isActive() == true) {
+            Vec3d &pos(f.agent[i].pos());
+            osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
+          }
         }
 
         // Copy all the agents into shared state;
@@ -356,7 +355,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vector<Vec3f> &v(mesh.vertices());
     vector<Vec3f> &n(mesh.normals());
     vector<Color> &c(mesh.colors());
-    for (unsigned i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
       v[i] = state().agent[i].position;
       n[i] = -state().agent[i].orientation.toVectorZ();
       const Vec3d &up(state().agent[i].orientation.toVectorY());
@@ -403,4 +402,10 @@ float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
   } else {
     return (pow(normValue, curve) * (outHigh - outLow)) + outLow;
   }
+}
+
+Vec3f polToCar(float r, float t) {
+  float x = r * cos(t);
+  float y = r * sin(t);
+  return Vec3f(x, 0, y);
 }
