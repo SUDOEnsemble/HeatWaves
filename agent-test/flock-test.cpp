@@ -203,9 +203,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
       // Rotate force field vectors
       //
+      // ???
 
       int sharedIndex = 0;
-      for (Flock f : flock) {
+
+      for (int n = 0; n < flock.size(); n++) {
+        Flock &f(flock[n]);
+        //   for (Flock f : flock) {
 
         // Reset agent quantities before calculating frame
         //
@@ -274,8 +278,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         //
         for (int i = 0; i < f.population; i++) {
           // agency
+          //
           f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
+
           // force field
+          //
           // if (flock1.agent[i].withinBounds(field)) {
           //   flock1.agent[i].acceleration +=
           //       field.grid.at(flock1.agent[i].fieldIndex(field)) *
@@ -283,7 +290,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           // } else {
           //   flock1.agent[i].velocity *= -1;
           // }
+
           // drag
+          //
           f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
         }
 
@@ -321,7 +330,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         //
         for (unsigned short i = 0; i < f.population; i++) {
           Vec3d &pos(f.agent[i].pos());
-          osc.send("/pos", i, (float)pos.x, (float)pos.y, (float)pos.z);
+          osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
         }
 
         // Copy all the agents into shared state;
