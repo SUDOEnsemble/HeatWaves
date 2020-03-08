@@ -168,7 +168,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     for (int i = 0; i < 2; i++) {
       Flock f = Flock(Vec3f((float)i, (float)i, float(i)), 0.0f, 500);
       for (Agent a : f.agent) {
-        space.move(n, a.pos() * space.dim());
+        space.move(i, a.pos() * space.dim()); // crashes when using "n"
         mesh.vertex(a.pos());
         mesh.normal(a.uf());
         const Vec3f &up(a.uu());
