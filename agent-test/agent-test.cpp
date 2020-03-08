@@ -80,13 +80,6 @@ struct Agent : Pose {
   }
 };
 
-struct Flock {
-  Vec3f home; // instead of agents having it
-  float hue;
-  vector<Agent> agent;
-  unsigned population;
-}
-
 struct DrawableAgent {
   Vec3f position;
   Quatf orientation;
