@@ -55,7 +55,7 @@ Mollusca + Chordata       =   80,784 total count
 >>  potential spatial logic - defines birth origin and a "home" space  
     ("I [are boid] want to stay close to this point unless a behavor [flee] tells me otherwise")  
 
-      transect 1 - 8 >>> mapped to x/z axis >>> 8 points >> distance from origin                
+      transect 1 - 8 >>> mapped to x/z axis >>> 8 points >> distance from origin >> normal vector * transect              
       quadrant 0 - 40 >>> mapped to y axis >>> 6 points >> elevation on the Y
       site 1 - 11 >>> mapped to x/z >>> 11 points divided into 2PI to get vector from origin [one site ever 32.72 deg]
 
@@ -79,60 +79,66 @@ using namespace std;
 
 // GLOBALS  
 int pieceTime = 1200;   // This is the total number of seconds in the piece
+//int fps = FRAMERATE;
 
 
-struct temperatures {   // Struct for Temperature datapoints
+typedef struct {   // Struct for a single Temperature datapoint
   char site[32];        // temp[0]
   char location[32];    // temp[1]
   char date[32];        // temp[2]
   char columnPos[32];   // temp[3]
   float temp;           // temp[4]
   char category[32];    // temp[5]
-};
+} temperatures;
 
 
-struct biodiversities { // Struct for biodiversity datapoints
-  int year;             // data[0]    
-  int month;            // data[1]
-  char date[32];        // data[2]
-  char site[32];        // data[3]
-  float transect;       // data[4]
-  float quad;           // data[5]
-  char side[32];        // data[6]
-  char spCode[32];      // data[7]
-  float size;           // data[8]
-  float count;          // data[9]
-  float area;           // data[10]
-  char sciName[32];     // data[11]
-  char comName[32];     // data[12]
-  char taxKingdom[32];  // data[13]
-  char taxPhylum[32];   // data[14]
-  char taxClass[32];    // data[15]
-  char taxOrder[32];    // data[16]
-  char taxFamily[32];   // data[17]
-  char taxGenus[32];    // data[18]
-  char group[32];       // data[19]
-  char survey[32];      // data[20]
-  char mobility[32];    // data[21]
-  char growth[32];      // data[22]
-};
+typedef struct { // Struct for a single biodiversity datapoint
+  float date;        // data[0]
+  float site;        // data[1]
+  float transect;    // data[2]
+  float quad;        // data[3]
+  float size;        // data[4]
+  float count;        // data[5]
+  float comName;     // data[6]
+  float taxPhylum;   // data[7]
+  float mobility;    // data[8]
+  float growth;      // data[9]
+} biodiversities;
 
 
 
-struct Flocks {                                 // << ???
-  vector<Agents> agents;
-  vector<float> count; 
+// struct Flocks {                                 // << ???
+//   vector<Agents> agents;
+//   vector<float> count; 
 
-  float minimum, maximum, average;              // Does each flock have it's concept of this? 
-};
+//   float minimum, maximum, average;              // Does each flock have it's concept of this? 
+// };
 
 
-struct Species {
-  vector<biodiversities> data;
-  vector<Flocks> flocks;
 
-  float minimum, maximum, average;              // these can be calculated one time on create... 
-  Vec3f homeOrigin, flockCenter;
+
+// struct Species {
+//   vector<biodiversities> data;
+//   //vector<Flocks> flocks;
+
+//   float minimum, maximum, average;              // these can be calculated one time on create... 
+//   Vec3f homeOrigin, flockCenter;
+
+  /*
+
+  void step() {
+    // all parameters that need to be interpolated ish
+    float count = lerp(data[i].count, data[i+1].count, pieceTime / data.size());
+
+  }
+
+
+
+  void dump() {
+      // dump data to std::out ...
+  };
+  void dump(int index) {
+  };
 
   /*
   >> What every species needs to know... 
@@ -143,18 +149,11 @@ struct Species {
           >> When adding new flock members... WHERE are they added... (center of the flock)         | NOT home, flockCenter Vec3f
           >> flock behaviors...
           >> environmental influence... 
+  
+
+  Vec3f homeOrigin = (0,0,0);   // calculated from site, transect, quad, and side
   */
-
-  homeOrigin = (0,0,0);   // calculated from site, transect, quad, and side
-};
-
-
-
-
-
-vector<char*> names = "Bat Star", "Aggregating anemone";
-
-
+// };
 
 
 
@@ -163,9 +162,11 @@ struct MyApp : App {
   Clock clock;                                              // NEED TO FIGURE OUT SEQUENCE 
 
   vector<float> temps;
+  // vector<Species> species;
 
-  Species batStar;
-  
+
+
+
   void onCreate() override {
     CSVReader temperatureData;
     temperatureData.addType(CSVReader::STRING);             // Site
@@ -174,47 +175,36 @@ struct MyApp : App {
     temperatureData.addType(CSVReader::STRING);             // Column Position
     temperatureData.addType(CSVReader::REAL);               // Temperature (c)
     temperatureData.addType(CSVReader::STRING);             // category
-    temperatureData.readFile("data/temperature.csv");
+    temperatureData.readFile("../data/temperature.csv");
 
 
     CSVReader bioDiversityData;
-    bioDiversityData.addType(CSVReader::REAL);              // Year
-    bioDiversityData.addType(CSVReader::REAL);              // Month
-    bioDiversityData.addType(CSVReader::STRING);            // Date
-    bioDiversityData.addType(CSVReader::STRING);            // Site
-    bioDiversityData.addType(CSVReader::REAL);              // Transect
-    bioDiversityData.addType(CSVReader::REAL);              // Quad
-    bioDiversityData.addType(CSVReader::STRING);            // Side
-    bioDiversityData.addType(CSVReader::STRING);            // SP_code
-    bioDiversityData.addType(CSVReader::REAL);              // Size
-    bioDiversityData.addType(CSVReader::REAL);              // Count
-    bioDiversityData.addType(CSVReader::REAL);              // Area
-    bioDiversityData.addType(CSVReader::STRING);            // Scientific Name
-    bioDiversityData.addType(CSVReader::STRING);            // Common Name
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Kingdom
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Phylum
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Class
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Order
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Family
-    bioDiversityData.addType(CSVReader::STRING);            // Taxonomy | Genus
-    bioDiversityData.addType(CSVReader::STRING);            // Group
-    bioDiversityData.addType(CSVReader::STRING);            // Survey 
-    bioDiversityData.addType(CSVReader::STRING);            // Mobility
-    bioDiversityData.addType(CSVReader::STRING);            // Growth_Morph
-    bioDiversityData.readFile("data/bioDiversity.csv");
+    bioDiversityData.addType(CSVReader::REAL);              // Date                 | yymmdd Sequential
+    bioDiversityData.addType(CSVReader::REAL);              // Site                 | 0 - 10
+    bioDiversityData.addType(CSVReader::REAL);              // Transect             | 1 - 8
+    bioDiversityData.addType(CSVReader::REAL);              // Quad                 | 0 - 6
+    bioDiversityData.addType(CSVReader::REAL);              // Size                 | float > 0
+    bioDiversityData.addType(CSVReader::REAL);              // Count                | float > 0 
+    bioDiversityData.addType(CSVReader::REAL);              // Common Name          | 0 - 57
+    bioDiversityData.addType(CSVReader::REAL);              // Taxonomy | Phylum    | 0 - 7
+    bioDiversityData.addType(CSVReader::REAL);              // Mobility             | 0 or 1
+    bioDiversityData.addType(CSVReader::REAL);              // Growth_Morph         | 0 or 1
+    bioDiversityData.readFile("../data/biodiverse.csv");
 
 
-    vector<biodiversities> rows = bioDiversityData.copyToStruct<biodiversities>();
-    for (int i = 0; i < rows.size(); i++) {
-      for (int j = 0; j < names.size(); j++) {
-        if (rows[i].comName == names[j]){                             // if the data entry has a common name "Bat Star" add the entire line of data to 
-          
-          
-          batStar.data.push_back(rows[i]);
-          // but need to replace batStar with appropriate species...
-        }
-      }                                                     
-    }                                                          
+    //int count = 0;
+    // vector<biodiversities> rows = bioDiversityData.copyToStruct<biodiversities>();
+    // for (auto row : rows) {
+    //   std::cout << row.date << " " << row.comName << " " << row.site << std::endl;     
+    // }
+
+    // vector<temperatures> cols = temperatureData.copyToStruct<temperatures>();
+    //  for (auto col : cols) {
+    //   std::cout << col.temp << std::endl;     
+    // }                                      
+    
+    // std::cout << "the count =" << count << std::endl;
+                                                     
 
 
     // for (auto name : temperatureData.getColumnNames()) {
@@ -222,40 +212,40 @@ struct MyApp : App {
     // }
     // std::cout << std::endl << "---------------" << std::endl;
 
+
     // for (auto name : bioDiversityData.getColumnNames()) {
     //   std::cout << name << " | ";
     // }
     // std::cout << std::endl << "---------------" << std::endl;
 
 
-
     for (auto temp : temperatureData.getColumn(4)) {
       temps.push_back(temp);
-    }
+    } 
+
+    std::cout << temps[5] << std::endl;
 
 
-    // need to do something like... 
-    float increment = pieceTime * 1000 / temps.size(); 
-    // interpolate from temp[0] to temp[1] over increment
 
-    // but... need to do that for EVERY parameter... parameter parent struct? so struct temperatures : parameters {} or similar... 
-    // then a species struct that includes all of these parameter structs that pulls all the data based on an if?
+    // // need to do something like... 
+    // float increment = pieceTime * 1000 / temps.size(); 
+    // // interpolate from temp[0] to temp[1] over increment
 
-    float average = 0;
-  for (auto temp : temps) {
-    average += temp;
-  }
+    // // but... need to do that for EVERY parameter... parameter parent struct? so struct temperatures : parameters {} or similar... 
+    // // then a species struct that includes all of these parameter structs that pulls all the data based on an if?
 
-    average /= temps.size();
-    float tMaximum = *max_element(temps.begin(), temps.end());
-    float tMinimum = *min_element(temps.begin(), temps.end());
+    // float average = 0;
+    // for (auto temp : temps) {
+    //   average += temp;
+    // }
+    // average /= temps.size();
+
+    // float tMaximum = *max_element(temps.begin(), temps.end());
+    // float tMinimum = *min_element(temps.begin(), temps.end());
     
-    std::cout << "Average:" << average << std::endl;
-    std::cout << "Maximum:" << tMaximum << std::endl;
-    std::cout << "Minimum:" << tMinimum << std::endl;
-
-
-    //std::vector<temperatures> temper = temperatureData.copyToStruct<temperatures>();
+    // std::cout << "Average:" << average << std::endl;
+    // std::cout << "Maximum:" << tMaximum << std::endl;
+    // std::cout << "Minimum:" << tMinimum << std::endl;
   }
 
   void onAnimate(double dt) override {
