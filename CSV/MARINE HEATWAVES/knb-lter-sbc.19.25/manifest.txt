@@ -1,0 +1,5 @@
+Manifest file for knb-lter-sbc.19.25.zip created on Wed Oct 16 10:23:33 MDT 2019
+Annual_Quad_Swath_All_Years_20181127.csv (57796037 bytes)
+knb-lter-sbc.19.25.xml (43474 bytes)
+knb-lter-sbc.19.25.txt (22048 bytes)
+knb-lter-sbc.19.25.report.xml (32884 bytes)

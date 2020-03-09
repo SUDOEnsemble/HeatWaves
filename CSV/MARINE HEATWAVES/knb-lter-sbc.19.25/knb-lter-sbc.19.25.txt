@@ -1,0 +1,920 @@
+
+  
+    
+      uid=sbc,o=LTER,dc=ecoinformatics,dc=org
+      all
+    
+    
+      uid=mobrien,o=LTER,dc=ecoinformatics,dc=org
+      all
+    
+    
+      uid=lkui,dc=ecoinformatics,dc=org
+      all
+    
+    
+      public
+      read
+    
+  
+  
+    knb-lter-sbc.19
+    doi:10.6073/pasta/748ee568669ca2b740e9b8f5f8a085d8
+    KFCD Reef quad-swath counts
+    SBC LTER: Reef: Kelp Forest Community Dynamics: Invertebrate and algal density
+    
+      Santa Barbara Coastal LTER
+      			Marine Science Institute,University of California
+			Santa Barbara, CA 93106  USA
+      sbclter@msi.ucsb.edu
+    
+    
+      Daniel C Reed
+      dan.reed@lifesci.ucsb.edu
+      https://orcid.org/0000-0003-3015-8717
+    
+    2018-11-28
+    English
+    
+      
+  These data describe the density and size of a select group of about 50
+  species of benthic invertebrates and understory algae in fixed plots
+  (either 1m x 1m or 20m x 1m) along permanent transects. These data are
+  part of SBCLTER’s kelp forest monitoring program to track long-term
+  patterns in species abundance and diversity of reef-associated
+  organisms in the Santa Barbara Channel, California, USA. The sampling
+  locations in this dataset are at nine reef sites along the mainland
+  coast of the Santa Barbara Channel and at two sites on the north side
+  of Santa Cruz Island. These sites reflect several oceanographic
+  regimes in the channel and vary in distance from sources of
+  terrestrial runoff. Sampling began in 2000, and these data are updated
+  annually.
+
+      
+  The time period of data collection varied among the 11 kelp forest
+  sites. Sampling at BULL, CARP, and NAPL began in 2000, sampling at the
+  other 6 mainland sites (AHND, AQUE, IVEE, GOLB, ABUR, MOHK) began in
+  2001 (transects 3, 5, 6, 7, 8 at IVEE were added in 2011). Data
+  collection at the two Santa Cruz Island sites (SCTW and SCDI) began in
+  2004. See Methods for more information.  
+
+    
+    
+      populations
+      LTER Core Research Areas
+    
+    
+      LTER
+      populations
+      Santa Barbara Coastal
+      LTER Controlled Vocabulary v1
+    
+    
+      Kelp_forest_monitoring
+      populations
+      SBC-LTER Controlled Vocabulary
+    
+    
+      Arroyo Burro
+      Arroyo Hondo
+      Arroyo Quemado
+      Bullito
+      Carpinteria
+      Goleta Bay
+      Isla Vista
+      Mohawk
+      Naples
+      Santa Cruz Island, Diablo
+      Santa Cruz Island, Twin Harbor West
+      Santa Barbara Coastal LTER Places
+    
+    
+      Macroalgae
+      Marine Invertebrates
+      Marine Plants
+      Global Change Master Directory (GCMD) v6.0.0.0.0
+    
+    
+      invertebrate
+      Knowledge Network for Biocomplexity
+    
+    
+      Kelp_forest_monitoring
+      LTER
+      Macroalgae
+      Marine Invertebrates
+      Marine Plants
+    
+    
+
+      
+  This data package is released under the Creative Commons license
+  Attribution 4.0 International (CC BY 4.0 , see
+  https://creativecommons.org/licenses/by/4.0/).
+  This license states that consumers ("Data Users" herein) may
+  distribute, adapt, reuse, remix, and build upon this work, as long as
+  they give appropriate credit, provide a link to the license, and
+  indicate if changes were made. If redistributed, a Data User may not
+  apply additional restrictions or technological measures that prevent
+  access.
+
+      
+  The Data User has an ethical obligation to cite the data source
+  appropriately in any publication or product that results from its use,
+  and notify the data contact or creator. Communication, collaboration,
+  or co-authorship (as appropriate) with the creators of this data
+  package is encouraged to prevent duplicate research or publication.
+  The Data User is urged to contact the authors of these data if any
+  questions about methodology or results occur. The Data User should
+  realize that these data may be actively used by others for ongoing
+  research and that coordination may be necessary to prevent duplication
+  or inappropriate use. The Data User should realize that
+  misinterpretation may occur if data are used outside of the context of
+  the original study. The Data User should be aware that data are
+  updated periodically and it is the responsibility of the Data User to
+  check for new versions of the data.
+
+      
+  While substantial efforts are made to ensure the accuracy of data and
+  associated documentation, complete accuracy of data sets cannot be
+  guaranteed. This data package (with its components) is made available
+  “as is” and with no warranty of accuracy or fitness for use. The
+  creators of this data package and the repository where these data were
+  obtained shall not be liable for any damages resulting from
+  misinterpretation, use or misuse of the data package or its
+  components.
+
+    
+    
+      
+        http://sbc.lternet.edu/
+      
+    
+    
+      
+        ABUR: Arroyo Burro Reef is located on the Santa Barbara Channel
+  near the mouth of Arroyo Burro Creek and Beach. Depth ranges from 5.4 to 7 meters.
+        
+          -119.7445915
+          -119.7445915
+          34.400275
+          34.400275
+        
+      
+      
+        AHND: Arroyo Hondo Reef is located on the Santa Barbara Channel near the east end of Gaviota State Park, CA. Depth ranges from -4.3m to -6.6 meters.
+        
+          -120.1426165
+          -120.1426165
+          34.471817
+          34.471817
+        
+      
+      
+        AQUE: Arroyo Quemado Reef: Arroyo Quemado Reef depth range from 5.4m to 10.7m. There are 7 permanent transects: Transect I --- Transect VII. Reference on Land is close to US101/Arroyo Quemada Ln.
+        
+          -120.11905
+          -120.11905
+          34.46774988
+          34.46774988
+        
+      
+      
+        BULL: Builto: Bulito has three permanent transect: Transect I, III, VI. Depth Range from -5.5 to -7.3. Reference on land is close to Ranch Real road and Hollister Ranch road crossing section.
+        
+          -120.33349
+          -120.33349
+          34.45850533
+          34.45850533
+        
+      
+      
+        CARP: Carpinteria Reef is located on the Santa Barbara Channel offshore of the Carpinteria Salt Marsh. Depth range is from -2.2 to -8.8 meters
+        
+          -119.5416933
+          -119.5416933
+          34.3916319
+          34.3916319
+        
+      
+      
+        GOLB: Goleta Bay is located on the Santa Barbara Channel east of Goleta Pier. Depth range is -4.2 to -5 meters.
+        
+          -119.8221
+          -119.8221
+          34.4137165
+          34.4137165
+        
+      
+      
+        IVEE: Isla Vista (IV) Reef is located on the Santa Barbara Channel near the University of California Santa Barbara, CA. Depth range is from -8.2 to -8.8 meters.
+        
+          -119.85755
+          -119.85755
+          34.402783
+          34.402783
+        
+      
+      
+        MOHK: Mohawk Reef: Mohawk Reef depth ranges from 4.5m to 6.0 m. Reference on land is Mohawk Rd / Edgewater Way.
+        
+          -119.72957
+          -119.72957
+          34.3940708
+          34.3940708
+        
+      
+      
+        NAPL: Naples Reef is located on the Santa Barbara Channel near the community of Naples and Dos Pueblos Canyon, Santa Barbara County, CA. Depth ranges from -5.9 to -13.4 meters.
+        
+          -119.95154
+          -119.95154
+          34.4221216
+          34.4221216
+        
+      
+      
+        SCDI: Santa Cruz Island, Diablo
+        
+          -119.75763
+          -119.75763
+          34.05865
+          34.05865
+        
+      
+      
+        SCTW: Santa Cruz Island, Twin Harbor West
+        
+          -119.71513
+          -119.71513
+          34.0444335
+          34.0444335
+        
+      
+      
+        
+          
+            2000-08-01
+          
+          
+            2018-07-25
+          
+        
+      
+    
+    
+      Information Manager, Santa Barbara Coastal LTER
+      			Marine Science Institute
+			University of California
+			Santa Barbara, California 93106-6150  United States
+      805 893 2071
+      sbclter@msi.ucsb.edu
+      http://sbc.lternet.edu
+    
+    
+      Santa Barbara Coastal Long Term Ecological Research Project
+    
+    
+      
+        
+          
+  The abundance and size of a specified number of common species of
+  invertebrates and algae are sampled by divers in quadrats (1 m
+  squared) at each of the six permanent locations along permanent
+  transects.
+
+          
+  Count values were given a NA (-99999) if: (1) data were not collected
+  for a particular species, (2) a datasheet was lost
+
+
+          
+  The start time that data collection began differed slightly among the
+  sites and transects. Information on these differences are listed in a
+  table accessible at:
+  http://sbc.lternet.edu/external/Reef/Data/Kelp_Forest_Community_Dynamics/Annual_survey_site_history.csv
+          
+          
+  See the protocol document for more information.
+
+        
+        
+          Kelp Forest Community Structure Methods - Density of algae and invertebrates-20130524
+          
+             Reed
+          
+          
+            
+              http://sbc.lternet.edu/external/Reef/Protocols/Kelp_Forest_Community_Dynamics/SBC_LTER_protocol_Reed_Kelp_forest_community_Density_algae_inverts_20130524.pdf
+            
+          
+        
+      
+    
+    
+      Santa Barbara Coastal Long Term Ecological Research Project
+      
+        Dr. Daniel Reed
+        			Marine Science Institute
+			University of California
+			Santa Barbara, California 93106-6150  United States
+        805 893 8363
+        reed@lifesci.ucsb.edu
+        Principal Investigator
+      
+      
+        Dr. John Melack
+        			Bren School of Environmental Science and Management
+			University of California
+			Santa Barbara, California 93106-5131  United States
+        805 893 3879
+        melack@lifesci.ucsb.edu
+        Co-principal Investigator
+      
+      
+        Dr. Sally Holbrook
+        			Ecology, Evolution and Marine Biology
+			University of California
+			Santa Barbara, California 93106-9620  United States
+        805 893 3777
+        holbrook@lifesci.ucsb.edu
+        Co-principal Investigator
+      
+      
+        Dr. Steven Gaines
+        			Marine Science Institute
+			University of California
+			Santa Barbara, California 93106-9620  United States
+        805 893 3764
+        gaines@msi.ucsb.edu
+        Co-principal Investigator
+      
+      
+        Dr. David Siegel
+        			Institute for Computational Earth System Science
+			University of California
+			Santa Barbara, California 93106-3060  United States
+        805 893 4547
+        davey@icess.ucsb.edu
+        Co-principal Investigator
+      
+      
+        
+          The primary research objective of the Santa Barbara Coastal LTER is to investigate
+            the importance of land and ocean processes in structuring giant kelp
+            (Macrocystis pyrifera ) forest ecosystems. As in many temperate
+            regions, the shallow rocky reefs in the Santa Barbara Channel, California, are dominated
+            by giant kelp forests. Because of their close proximity to shore, kelp forests are
+            influenced by physical and biological processes occurring on land as well as in the open
+            ocean. SBC LTER research focuses on measuring and modeling the patterns, transport, and
+            processing of material constituents (e.g., nutrients, carbon, sediment, organisms, and
+            pollutants) from terrestrial watersheds and the coastal ocean to these reefs.
+            Specifically, we are examining the effects of these material inputs on the primary
+            production of kelp, and the population dynamics, community structure, and trophic
+            interactions of kelp forest ecosystems.
+        
+      
+      
+        
+          NSF Award OCE-0620276
+        
+      
+    
+    
+      Benthic community survey, inverts and understory algae, all years
+      abundance and size of selected species of benthic invertebrates and understory algae in fixed plots along permanent transects.
+      
+        Annual_Quad_Swath_All_Years_20181127.csv
+        57796037
+        a9ff26141ac40164c8e71a07443394dd
+        
+          
+            1
+            \r\n
+            column
+            
+              ,
+              no
+            
+          
+        
+        
+          
+            https://pasta.lternet.edu/package/data/eml/knb-lter-sbc/19/25/5daf0da45925ba9014872c6bc9f6c8bb
+          
+        
+      
+      
+        
+          year
+          Year
+          Calendar year
+          integer
+          
+            
+              YYYY
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          month
+          Month
+          Calendar month
+          integer
+          
+            
+              MM
+              
+                
+                  1
+                  12
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          date
+          Date
+          Date of data collection in format: YYYY-MM-DD
+          string
+          
+            
+              YYYY-MM-DD
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          site
+          Site code
+          Code for reef site. See list of codes for meaning
+          string
+          
+            
+              
+                
+                  
+                    ABUR
+                    Arroyo Burro
+                  
+                  
+                    AHND
+                    Arroyo Hondo
+                  
+                  
+                    AQUE
+                    Arroyo Quemado
+                  
+                  
+                    BULL
+                    Bulito
+                  
+                  
+                    CARP
+                    Carpinteria
+                  
+                  
+                    GOLB
+                    Goleta Bay
+                  
+                  
+                    IVEE
+                    Isla Vista
+                  
+                  
+                    MOHK
+                    Mohawk
+                  
+                  
+                    NAPL
+                    Naples
+                  
+                  
+                    SCDI
+                    Santa Cruz Island, Diablo
+                  
+                  
+                    SCTW
+                    Santa Cruz Island, Twin Harbor West Reef
+                  
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          transect
+          Transect name
+          40m transects defined by six permanent markers (stainless steel eyebolts or rebar stakes) at 0, 8, 16, 24, 32, and 40m.
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          quad
+          Quadrat name
+          data collected in quadrats of 20m2 called 20 or 40 (0-20, or 20-40m, also knows as swaths), or 1m2 quadrats at 0, 8, 16, 24, 32, 40m along transect
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          side
+          Transect side
+          used for quad survey_method, only. inshore or offshore side of transect
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          sp_code
+          Species code
+          2-4 letter code generally composed of the first letter of the genus (G) name and the first three letters of the species (S) name (format=GSSS).
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          size
+          Size
+          Average size of individual counted
+          float
+          
+            
+              
+                centimeter
+              
+              0.5
+              
+                real
+              
+            
+          
+          
+            -99999
+            no measurement collected at this point, or not available
+          
+        
+        
+          count
+          Count
+          number of individuals in area
+          integer
+          
+            
+              
+                number
+              
+              1
+              
+                real
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          area
+          Area
+          Total area surveyed
+          float
+          
+            
+              
+                meterSquared
+              
+              1
+              
+                real
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          scientific name
+          Scientific name
+          Taxonomic scientific name
+          string
+          
+            
+              
+                
+                  text
+                
+              
+            
+          
+          
+            -99999
+            value not recorded or not available
+          
+        
+        
+          common_name
+          Common name
+          common_name
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_kingdom
+          Kingdom
+          taxonomic kingdom
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_phylum
+          Phylum
+          taxonomic phylum
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_class
+          Class
+          taxonomic class
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_order
+          Order
+          taxonomic order
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_family
+          Family
+          taxonomic family
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          taxon_genus
+          Genus
+          taxonomic genus
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          group
+          Organism group
+          functional group of organism
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          survey
+          Survey method
+          data collection method, could be quad or swath (size dependent)
+          string
+          
+            
+              
+                
+                  any text
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          mobility
+          Mobility
+          organism is either sessile or mobile
+          string
+          
+            
+              
+                
+                  
+                    Mobile
+                    Organism is capable of independent movement
+                  
+                  
+                    Sessile
+                    Organism is attached to the bottom
+                  
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+        
+          growth_morph
+          Growth Morphology
+          organism is either aggregate or solitary
+          string
+          
+            
+              
+                
+                  
+                    Aggregate
+                    Organism occurs in groups
+                  
+                  
+                    solitary
+                    Organism occurs singly
+                  
+                
+              
+            
+          
+          
+            -99999
+            no information available
+          
+        
+      
+      324988
+    
+  
+  
+    
+      
+        
+          .01 meters
+        
+        
+          area, meter squared from the LTER unit dictionary
+        
+        
+          a number
+        
+      
+    
+  
