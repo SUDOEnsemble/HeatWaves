@@ -1,8 +1,7 @@
+// Rodney DuPlessis
+// Kramer Elwell
 // Raphael Radna
 // MAT-201B W20
-// Flock Tests for Final Project
-//
-// Convert "agent-test.cpp" to support multiple "flocks" of agents
 //
 // TO DO:
 
@@ -119,14 +118,16 @@ struct DrawableAgent {
   }
 };
 
-#define N (1)
-#define T (25)
-HashSpace space(6, N);
+#define FLOCK_COUNT (50)
+#define FLOCK_SIZE (10)
+#define TAIL_LENGTH (25)
+
+HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
 struct SharedState {
   Pose cameraPose;
   float background;
   float size, ratio;
-  DrawableAgent agent[N];
+  DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
@@ -137,6 +138,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter size{"/size", "", 1.0, "", 0.0, 2.0};
   Parameter ratio{"/ratio", "", 1.0, "", 0.0, 2.0};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
+  Parameter tailLength{"/tailLength", "", 0.2, "", 0.0001, 0.9};
   ControlGUI gui;
 
   ShaderProgram shader;
@@ -157,34 +159,49 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     }
 
     gui << moveRate << turnRate << localRadius << k << size << ratio
-        << fieldStrength;
+        << fieldStrength << tailLength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
     parameterServer() << moveRate << turnRate << localRadius << k << size
-                      << ratio << fieldStrength;
+                      << ratio << fieldStrength << tailLength;
 
     navControl().useMouse(false);
 
     // compile shaders
-    shader.compile(slurp("../tetrahedron-vertex.glsl"),
-                   slurp("../tetrahedron-fragment.glsl"),
-                   slurp("../tetrahedron-geometry.glsl"));
+    shader.compile(slurp("../paint-vertex.glsl"),
+                   slurp("../paint-fragment.glsl"),
+                   slurp("../paint-geometry.glsl"));
 
-    mesh.primitive(Mesh::POINTS);
+    mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
 
     int n = 0;
-    for (int i = 0; i < 1; i++) {
-      float t = i / 1.0f * M_PI * 2;
-      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), 1, 0.0f);
+    for (int i = 0; i < FLOCK_COUNT; i++) {
+      float t = i / float(FLOCK_COUNT) * M_PI * 2;
+      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), FLOCK_SIZE,
+                      rnd::uniform());
       for (Agent a : f.agent) {
-        space.move(n, a.pos() * space.dim()); // crashes when using "n"?
-        mesh.vertex(a.pos());
-        mesh.normal(a.uf());
-        const Vec3f &up(a.uu());
-        mesh.color(up.x, up.y, up.z);
+        space.move(n,
+                   a.pos() * space.dim()); // crashes when using "n"?
+
+        for (int j = 0; j < TAIL_LENGTH; j++) {
+          mesh.vertex(a.pos());
+          mesh.normal(a.uf());
+          mesh.color(HSV(rnd::uniform(), 1.0f, 1.0f));
+          if (j == 0) {
+            // texcoord v 1 used to indicate head of a strip
+            mesh.texCoord(0.3, 1.0);
+          } else if (j == TAIL_LENGTH - 1) {
+            // texcoord 2 used to indicate tail of a strip
+            mesh.texCoord(0.3, 2.0);
+          } else {
+            // texcoord 0 used to indicate body of a strip
+            mesh.texCoord(0.3, 0.0);
+          }
+        }
+
         n++;
       }
       flock.push_back(f);
@@ -197,7 +214,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   int frameCount = 0;
   void onAnimate(double dt) override {
     if (cuttleboneDomain->isSender()) {
-
       t += dt;
       frameCount++;
       if (t > 1) {
@@ -265,23 +281,26 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             }
 
             // if (agent[i].flockCount == 1) {
-            //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 * turnRate);
-            //   continue;
+            //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 *
+            //   turnRate); continue;
             // }
 
             // make averages
             // agent[i].center /= agent[i].flockCount;
             // agent[i].heading /= agent[i].flockCount;
 
-            // float distance = (agent[i].pos() - agent[i].center).mag();
+            // float distance = (agent[i].pos() -
+            // agent[i].center).mag();
 
-            // alignment: steer towards the average heading of local flockmates
+            // alignment: steer towards the average heading of local
+            // flockmates
             //
-            // agent[i].faceToward(agent[i].pos() + agent[i].heading,
+            // agent[i].faceToward(agent[i].pos() +
+            // agent[i].heading,
             //                     0.003 * turnRate);
-            // agent[i].faceToward(agent[i].center, 0.003 * turnRate);
-            // agent[i].faceToward(agent[i].pos() - agent[i].center, 0.003 *
-            // turnRate);
+            // agent[i].faceToward(agent[i].center, 0.003 *
+            // turnRate); agent[i].faceToward(agent[i].pos() -
+            // agent[i].center, 0.003 * turnRate);
 
             // steer towards the home location
             //
@@ -345,7 +364,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       state().size = size.get();
       state().ratio = ratio.get();
     } else {
-
       // use the camera position from the simulator
       //
       nav().set(state().cameraPose);
@@ -354,16 +372,26 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     // visualize the agents
     //
     vector<Vec3f> &v(mesh.vertices());
+    vector<Vec2f> &t(mesh.texCoord2s());
     vector<Vec3f> &n(mesh.normals());
     vector<Color> &c(mesh.colors());
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < FLOCK_COUNT * FLOCK_SIZE; i++) {
       if (state().agent[i].active == true) {
-        v[i * T] = state().agent[i].position;
-        n[i * T] = -state().agent[i].orientation.toVectorZ();
-        const Vec3d &up(state().agent[i].orientation.toVectorY());
-        c[i * T].set(up.x, up.y, up.z);
+        int headVertex = i * TAIL_LENGTH;
+        for (int j = headVertex + TAIL_LENGTH; j >= headVertex; j--) {
+          if (t[j].y != 1)
+            v[j].lerp(v[j - 1], tailLength);
+          if (t[j].y == 1) {
+            v[j].set(state().agent[i].position);
+          }
+          // c[j] =
+        }
+        // v[i] = state().agent[i].position;
+        n[i * TAIL_LENGTH] = -state().agent[i].orientation.toVectorZ();
+        // const Vec3d &up(state().agent[i].orientation.toVectorY());
+        // c[i * TAIL_LENGTH].set(0.0f, 1.0f, 0.0f);
       } else {
-        n[i * T] = Vec3f(4, 4, 4);
+        t[i * TAIL_LENGTH].set(0.3, 4);
       }
     }
   }
@@ -376,8 +404,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     gl::blending(true);
     gl::blendTrans();
     g.shader(shader);
-    g.shader().uniform("size", state().size * 0.03);
-    g.shader().uniform("ratio", state().ratio * 0.2);
+    // g.shader().uniform("size", state().size * 0.03);
+    // g.shader().uniform("ratio", state().ratio * 0.2);
     g.draw(mesh);
 
     if (cuttleboneDomain->isSender()) {
