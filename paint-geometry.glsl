@@ -40,7 +40,7 @@ uniform mat4 al_ProjectionMatrix;
 in Vertex {
     vec4 color;
     float size;
-    float normal;
+    float body;
 }
 vertex[];
 
@@ -62,7 +62,7 @@ void main() {
     vec4 dist2;
     // vec4 normal = normalize(vec4(-b.y, c.x, 0.0, 0.0));
 
-    if (vertex[1].normal == 0) {  // miter leading edge if it's a body segment
+    if (vertex[1].body == 0) {  // miter leading edge if it's a body segment
         vec4 tangent =
             vec4(normalize(normalize(c.xyz - b.xyz) + normalize(b.xyz - a.xyz)),
                  0.0);
@@ -73,7 +73,7 @@ void main() {
         dist = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered head
     }
 
-    if (vertex[2].normal == 0) {  // miter trailing edge if it's a body segment
+    if (vertex[2].body == 0) {  // miter trailing edge if it's a body segment
         vec4 tangent2 =
             vec4(normalize(normalize(d.xyz - c.xyz) + normalize(c.xyz - b.xyz)),
                  0.0);
@@ -85,7 +85,7 @@ void main() {
         dist2 = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered tail
     }
 
-    if (vertex[1].normal == 0 || vertex[1].normal == 1) {
+    if (vertex[1].body == 0 || vertex[1].body == 1) {
         gl_Position = m * (b + dist * vertex[1].size);
         fragment.color = vertex[1].color;
         fragment.textureCoordinate = 0.0;
