@@ -1,7 +1,8 @@
-// Rodney DuPlessis
-// Kramer Elwell
 // Raphael Radna
 // MAT-201B W20
+// Flock Tests for Final Project
+//
+// Convert "agent-test.cpp" to support multiple "flocks" of agents
 //
 // TO DO:
 
@@ -154,9 +155,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-<<<<<<< HEAD
-        mesh.primitive(Mesh::LINES);
-=======
     gui << moveRate << turnRate << localRadius << k << size << ratio
         << fieldStrength;
     gui.init();
@@ -190,7 +188,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       }
       flock.push_back(f);
     }
->>>>>>> 866f0f49252cef1b01c5ca94978238838d90fbee
 
     nav().pos(0.5, 0.5, 5);
   }
