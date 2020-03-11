@@ -138,7 +138,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter size{"/size", "", 1.0, "", 0.0, 2.0};
   Parameter ratio{"/ratio", "", 1.0, "", 0.0, 2.0};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
-  Parameter tailLength{"/tailLength", "", 0.2, "", 0.0001, 0.9};
+  Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
+  Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
   ControlGUI gui;
 
   ShaderProgram shader;
@@ -159,14 +160,14 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     }
 
     gui << moveRate << turnRate << localRadius << k << size << ratio
-        << fieldStrength << tailLength;
+        << fieldStrength << thickness << tailLength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
     parameterServer() << moveRate << turnRate << localRadius << k << size
-                      << ratio << fieldStrength << tailLength;
+                      << ratio << fieldStrength << thickness << tailLength;
 
     navControl().useMouse(false);
 
@@ -191,15 +192,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           mesh.normal(a.uf());
           if (j == 0) {
             // texcoord v 1 used to indicate head of a strip
-            mesh.texCoord(0.3, 1.0);
+            mesh.texCoord(thickness, 1.0);
             mesh.color(1.0f, 1.0f, 1.0f);
           } else if (j == TAIL_LENGTH - 1) {
             // texcoord 2 used to indicate tail of a strip
-            mesh.texCoord(0.3, 2.0);
+            mesh.texCoord(thickness, 2.0);
             mesh.color(HSV(f.hue, 1.0f, 1.0f));
           } else {
             // texcoord 0 used to indicate body of a strip
-            mesh.texCoord(0.3, 0.0);
+            mesh.texCoord(thickness, 0.0);
             mesh.color(HSV(f.hue, 1.0f, 1.0f));
           }
         }
@@ -377,9 +378,14 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vector<Vec2f> &t(mesh.texCoord2s());
     vector<Vec3f> &n(mesh.normals());
     vector<Color> &c(mesh.colors());
+
+    // for all agents in all flocks
+    //
     for (int i = 0; i < FLOCK_COUNT * FLOCK_SIZE; i++) {
       if (state().agent[i].active == true) {
         int headVertex = i * TAIL_LENGTH;
+        // for body of each agent, counting down from its tail
+        //
         for (int j = headVertex + TAIL_LENGTH; j > headVertex; j--) {
           if (t[j].y != 1)
             v[j].lerp(v[j - 1], tailLength);
@@ -387,6 +393,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             v[j].set(state().agent[i].position);
           }
           // c[j] =
+          t[j].x = thickness;
         }
         // v[i] = state().agent[i].position;
         n[i * TAIL_LENGTH] = -state().agent[i].orientation.toVectorZ();
