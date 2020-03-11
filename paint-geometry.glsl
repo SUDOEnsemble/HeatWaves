@@ -60,16 +60,15 @@ void main() {
     const float r = 0.3;
     vec4 dist;
     vec4 dist2;
-    vec4 normal = normalize(vec4(-b.y, c.x, 0.0, 0.0));
+    // vec4 normal = normalize(vec4(-b.y, c.x, 0.0, 0.0));
 
     if (vertex[1].normal == 0) {  // miter leading edge if it's a body segment
         vec4 tangent =
             vec4(normalize(normalize(c.xyz - b.xyz) + normalize(b.xyz - a.xyz)),
                  0.0);
         vec4 miter = vec4(-tangent.y, tangent.x, 0.0, 0.0);
-        float length = r / dot(miter, normal);
-        dist = vec4(normalize(cross(miter.xyz, vec3(0.0, 0.0, 1.0))), 0.0) *
-               length;
+        // float length = r / dot(miter, normal);
+        dist = vec4(normalize(cross(miter.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
     } else {
         dist = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered head
     }
@@ -79,9 +78,9 @@ void main() {
             vec4(normalize(normalize(d.xyz - c.xyz) + normalize(c.xyz - b.xyz)),
                  0.0);
         vec4 miter2 = vec4(-tangent2.y, tangent2.x, 0.0, 0.0);
-        float length = r / dot(miter2, normal);
-        dist2 = vec4(normalize(cross(miter2.xyz, vec3(0.0, 0.0, 1.0))), 0.0) *
-                length;
+        // float length = r / dot(miter2, normal);
+        dist2 =
+            vec4(normalize(cross(miter2.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
     } else {
         dist2 = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered tail
     }
