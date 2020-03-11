@@ -357,12 +357,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vector<Color> &c(mesh.colors());
     for (int i = 0; i < N; i++) {
       if (state().agent[i].active == true) {
-        v[i] = state().agent[i].position;
-        n[i] = -state().agent[i].orientation.toVectorZ();
+        v[i * T] = state().agent[i].position;
+        n[i * T] = -state().agent[i].orientation.toVectorZ();
         const Vec3d &up(state().agent[i].orientation.toVectorY());
-        c[i].set(up.x, up.y, up.z);
+        c[i * T].set(up.x, up.y, up.z);
       } else {
-        n[i] = Vec3f(4, 4, 4);
+        n[i * T] = Vec3f(4, 4, 4);
       }
     }
   }
