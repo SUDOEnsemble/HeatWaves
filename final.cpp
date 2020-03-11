@@ -126,17 +126,16 @@ HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
 struct SharedState {
   Pose cameraPose;
   float background;
-  float size, ratio;
+  float thickness;
   DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
+  Parameter background{"/background", "", 0.1, "", 0.0, 1.0};
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
   Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
   Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
   ParameterInt k{"/k", "", 5, "", 1, 15};
-  Parameter size{"/size", "", 1.0, "", 0.0, 2.0};
-  Parameter ratio{"/ratio", "", 1.0, "", 0.0, 2.0};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
   Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
@@ -159,15 +158,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << moveRate << turnRate << localRadius << k << size << ratio
+    gui << background << moveRate << turnRate << localRadius << k
         << fieldStrength << thickness << tailLength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << moveRate << turnRate << localRadius << k << size
-                      << ratio << fieldStrength << thickness << tailLength;
+    parameterServer() << background << moveRate << turnRate << localRadius << k
+                      << fieldStrength << thickness << tailLength;
 
     navControl().useMouse(false);
 
@@ -363,9 +362,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         }
       }
       state().cameraPose.set(nav());
-      state().background = 0.1;
-      state().size = size.get();
-      state().ratio = ratio.get();
+      state().background = background;
+      state().thickness = thickness.get();
     } else {
       // use the camera position from the simulator
       //
@@ -393,7 +391,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             v[j].set(state().agent[i].position);
           }
           // c[j] =
-          t[j].x = thickness;
+          t[j].x = state().thickness;
         }
         // v[i] = state().agent[i].position;
         n[i * TAIL_LENGTH] = -state().agent[i].orientation.toVectorZ();
@@ -413,8 +411,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     gl::blending(true);
     gl::blendTrans();
     g.shader(shader);
-    // g.shader().uniform("size", state().size * 0.03);
-    // g.shader().uniform("ratio", state().ratio * 0.2);
     g.draw(mesh);
 
     if (cuttleboneDomain->isSender()) {
