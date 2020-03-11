@@ -118,14 +118,16 @@ struct DrawableAgent {
   }
 };
 
-#define N (500)
-#define T (25)
-HashSpace space(6, N);
+#define FLOCK_COUNT (50)
+#define FLOCK_SIZE (10)
+#define TAIL_LENGTH (25)
+
+HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
 struct SharedState {
   Pose cameraPose;
   float background;
   float size, ratio;
-  DrawableAgent agent[N];
+  DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
@@ -176,19 +178,20 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
 
     int n = 0;
-    for (int i = 0; i < 50; i++) {
-      float t = i / 50.0f * M_PI * 2;
-      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), 10, 0.0f);
+    for (int i = 0; i < FLOCK_COUNT; i++) {
+      float t = i / float(FLOCK_COUNT) * M_PI * 2;
+      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), FLOCK_SIZE,
+                      i / float(FLOCK_COUNT));
       for (Agent a : f.agent) {
         space.move(n, a.pos() * space.dim()); // crashes when using "n"?
 
-        for (int j = 0; j < T; j++) {
+        for (int j = 0; j < TAIL_LENGTH; j++) {
           mesh.vertex(a.pos());
           mesh.texCoord(0.3, 0.0);
-          mesh.color(1.0f, 0.0f, 0.0f);
-          if (i % T == 0) {
+          mesh.color(HSV(f.hue, 1.0f, 1.0f));
+          if (i % TAIL_LENGTH == 0) {
             mesh.normal(1); // normal 1 used to indicate head of a strip
-          } else if (i % T == T - 1) {
+          } else if (i % TAIL_LENGTH == TAIL_LENGTH - 1) {
             mesh.normal(2); // normal 2 used to indicate tail of a strip
           } else {
             mesh.normal(0); // normal 0 used to indicate body of a strip
@@ -366,10 +369,10 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vector<Vec3f> &v(mesh.vertices());
     vector<Vec3f> &n(mesh.normals());
     vector<Color> &c(mesh.colors());
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < FLOCK_COUNT * FLOCK_SIZE; i++) {
       if (state().agent[i].active == true) {
-        int headVertex = i * T;
-        for (int j = headVertex + T; j >= headVertex; j--) {
+        int headVertex = i * TAIL_LENGTH;
+        for (int j = headVertex + TAIL_LENGTH; j >= headVertex; j--) {
           if (mesh.normals()[j] != 1)
             mesh.vertices()[j].lerp(mesh.vertices()[j - 1], tailLength);
 
