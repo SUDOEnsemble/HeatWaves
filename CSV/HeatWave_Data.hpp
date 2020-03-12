@@ -1,3 +1,7 @@
+#ifndef __HEATWAVES_DATA__
+#define __HEATWAVES_DATA__
+
+
 /*
 
 KRAMER ELWELL, RODNEY DUPLESSIS, RAPHAEL RADNA
@@ -73,7 +77,7 @@ struct Site {
 
   void update (float time) {
     if (data.size() > 0) {
-      float k = int(time * TIME_MOD);
+      float k = int(time * TIME_MOD) % data.size();
       float fract =  fmodf(time * TIME_MOD, 1.0); 
       
       float countDiff = data[k + 1].count - data[k].count;                  // Species Count
@@ -145,64 +149,57 @@ Clock c;
 
 
 void hLoad() {
-    CSVReader temperatureData;
-    temperatureData.addType(CSVReader::REAL);               // Date
-    temperatureData.addType(CSVReader::REAL);               // Temperature (c)
-    temperatureData.readFile("../data/_TEMP.csv");
+  CSVReader temperatureData;
+  temperatureData.addType(CSVReader::REAL);               // Date
+  temperatureData.addType(CSVReader::REAL);               // Temperature (c)
+  temperatureData.readFile("../data/_TEMP.csv");
 
-    std::vector<Temperatures> tRows = temperatureData.copyToStruct<Temperatures>();
-    for (auto t : tRows) {
-      heat.data.push_back(t);
-    };
+  std::vector<Temperatures> tRows = temperatureData.copyToStruct<Temperatures>();
+  for (auto t : tRows) {
+    heat.data.push_back(t);
+  };
 
 
-    CSVReader bioDiversityData;
-    bioDiversityData.addType(CSVReader::REAL);              // Name                
-    bioDiversityData.addType(CSVReader::REAL);              // Site               
-    bioDiversityData.addType(CSVReader::REAL);              // Date                
-    bioDiversityData.addType(CSVReader::REAL);              // Count               
-    bioDiversityData.addType(CSVReader::REAL);              // Transect             
-    bioDiversityData.addType(CSVReader::REAL);              // quad                 
-    bioDiversityData.addType(CSVReader::REAL);              // Taxonomy | Phylum    
-    bioDiversityData.addType(CSVReader::REAL);              // Mobility             
-    bioDiversityData.addType(CSVReader::REAL);              // Growth_Morph         
-    bioDiversityData.readFile("../data/_BIODIVERSE.csv");
+  CSVReader bioDiversityData;
+  bioDiversityData.addType(CSVReader::REAL);              // Name                
+  bioDiversityData.addType(CSVReader::REAL);              // Site               
+  bioDiversityData.addType(CSVReader::REAL);              // Date                
+  bioDiversityData.addType(CSVReader::REAL);              // Count               
+  bioDiversityData.addType(CSVReader::REAL);              // Transect             
+  bioDiversityData.addType(CSVReader::REAL);              // quad                 
+  bioDiversityData.addType(CSVReader::REAL);              // Taxonomy | Phylum    
+  bioDiversityData.addType(CSVReader::REAL);              // Mobility             
+  bioDiversityData.addType(CSVReader::REAL);              // Growth_Morph         
+  bioDiversityData.readFile("../data/_BIODIVERSE.csv");
 
-    std::vector<Biodiversities> bRows = bioDiversityData.copyToStruct<Biodiversities>();
-    for (auto b : bRows) {
-      species[int(b.comName)].site[int(b.site)].data.push_back(b);
-    };
+  std::vector<Biodiversities> bRows = bioDiversityData.copyToStruct<Biodiversities>();
+  for (auto b : bRows) {
+    species[int(b.comName)].site[int(b.site)].data.push_back(b);
+  };
 
-    float oMax = 0;
-    heat.init();
-    for (int i = 0; i < 58; i++) {
-      for (int j = 0; j < 11; j++) {
-        species[i].site[j].init();
-      }
+
+  heat.init();
+  for (int i = 0; i < 58; i++) {
+    for (int j = 0; j < 11; j++) {
+      species[i].site[j].init();
     }
-
-    // for (int i = 0; i < 58; i++) {
-    //   for (int j = 0; j < 11; j++) {
-    //     if (i != 16) { oMax += species[i].site[j].max; }
-    //     else if (i == 16) { continue; }
-    //     std::cout << "Species: " << i << " | Site: " << j << " | max: " << species[i].site[j].max << std::endl;
-    //   }
-    // }
+  }
 }
 
 
 float currentTemp = -1;
 void hStep() {
-    float currentTime = c.now();
-    float currentTemp = heat.update(currentTime);
-    for (int i = 0; i < 58; i++) {
-        for (int j = 0; j < 11; j++) {
-        species[i].site[j].update(currentTime);
-        }
-    }
-    c.update();
+  float currentTime = c.now();
+  float currentTemp = heat.update(currentTime);
+  for (int i = 0; i < 58; i++) {
+      for (int j = 0; j < 11; j++) {
+      species[i].site[j].update(currentTime);
+      }
+  }
+  c.update();
 }
 
+#endif  
 
 
 
