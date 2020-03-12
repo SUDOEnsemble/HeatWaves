@@ -180,7 +180,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     int n = 0;
     for (int i = 0; i < FLOCK_COUNT; i++) {
       float t = i / float(FLOCK_COUNT) * M_PI * 2;
-      Flock f = Flock(Vec3f(0.5, 0, 0.5) + polToCar(0.5, t), FLOCK_SIZE,
+      Flock f = Flock(Vec3f(0.5, 0.5, 0.5) + polToCar(0.5, t), FLOCK_SIZE,
                       (float)i / (float)FLOCK_COUNT);
       for (Agent a : f.agent) {
         space.move(n,
@@ -209,7 +209,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       flock.push_back(f);
     }
 
-    nav().pos(0.5, 0.5, 5);
+    nav().pos(0.5, 0.5, 0.5);
   }
 
   float t = 0;
