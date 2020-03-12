@@ -63,24 +63,21 @@ void main() {
     // vec4 normal = normalize(vec4(-b.y, c.x, 0.0, 0.0));
 
     if (vertex[1].body == 0) {  // miter leading edge if it's a body segment
-        vec4 tangent =
-            vec4(normalize(normalize(c.xyz - b.xyz) + normalize(b.xyz - a.xyz)),
-                 0.0);
-        vec4 miter = vec4(-tangent.y, tangent.x, 0.0, 0.0);
+        vec4 tangent = vec4(normalize(normalize(c.xyz - b.xyz) + normalize(b.xyz - a.xyz)),
+                            0.0);                                   // get tangent of joint angle
+        vec4 miter = vec4(-tangent.y, tangent.x, -tangent.z, 0.0);  // miter angle
         // float length = r / dot(miter, normal);
-        dist = vec4(normalize(cross(miter.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
+        dist = vec4(normalize(cross(miter.xyz, vec3(0.0, 0.0, 1.0))), 0.0) *
+               r;  // length of mitered edge
     } else {
         dist = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered head
     }
 
     if (vertex[2].body == 0) {  // miter trailing edge if it's a body segment
-        vec4 tangent2 =
-            vec4(normalize(normalize(d.xyz - c.xyz) + normalize(c.xyz - b.xyz)),
-                 0.0);
-        vec4 miter2 = vec4(-tangent2.y, tangent2.x, 0.0, 0.0);
+        vec4 tangent2 = vec4(normalize(normalize(d.xyz - c.xyz) + normalize(c.xyz - b.xyz)), 0.0);
+        vec4 miter2 = vec4(-tangent2.y, tangent2.x, -tangent2.z, 0.0);
         // float length = r / dot(miter2, normal);
-        dist2 =
-            vec4(normalize(cross(miter2.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
+        dist2 = vec4(normalize(cross(miter2.xyz, vec3(0.0, 0.0, 1.0))), 0.0) * r;
     } else {
         dist2 = vec4(normalize(c.xyz - b.xyz), 0.0) * r;  // unmitered tail
     }
