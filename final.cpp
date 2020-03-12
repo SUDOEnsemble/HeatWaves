@@ -19,6 +19,8 @@ using namespace al;
 
 using namespace std;
 
+#include "HeatWave_Data.hpp"
+
 Vec3f rvU() { return Vec3f(rnd::uniform(), rnd::uniform(), rnd::uniform()); }
 
 Vec3f rvS() { return Vec3f(rnd::uniformS(), rnd::uniformS(), rnd::uniformS()); }
@@ -146,6 +148,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
   vector<Flock> flock;
   ForceField field = ForceField(8);
+
+  Heat heat;
 
   std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
       cuttleboneDomain;
