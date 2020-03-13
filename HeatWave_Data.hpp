@@ -76,9 +76,10 @@ struct Site {
 
             float countDiff = data[k + 1].count - data[k].count;  // Species Count
             currentCount = int(data[k].count + countDiff * fract);
-            if (max >= 75 && currentCount > 50) {
-                d = currentCount / (max - 25);
-                currentCount = int((d * 25) + 50);
+            if (currentCount > 20) {
+                currentCount = 20;
+                // d = currentCount / (max - 25);
+                // currentCount = int((d * 25) + 50);
             }
 
             float rDiff = data[k + 1].transect - data[k].transect;  // Origin Radius
