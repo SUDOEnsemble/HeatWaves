@@ -120,8 +120,10 @@ struct DrawableAgent {
   }
 };
 
-#define FLOCK_COUNT (50)
-#define FLOCK_SIZE (10)
+#define NUM_SPECIES (58)
+#define NUM_SITES (11)
+#define FLOCK_COUNT (NUM_SPECIES * NUM_SITES)
+#define FLOCK_SIZE (100)
 #define TAIL_LENGTH (25)
 
 HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
@@ -149,7 +151,10 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   vector<Flock> flock;
   ForceField field = ForceField(8);
 
-  Heat heat;
+  Heat heat; // May need to create this onCreate
+  Species species[58];
+  Clock c;
+  float currentTemp = -1;
 
   std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
       cuttleboneDomain;
@@ -173,6 +178,44 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                       << fieldStrength << thickness << tailLength;
 
     navControl().useMouse(false);
+
+    // Loading CSV data, initializing structs
+    //
+    CSVReader temperatureData;
+    temperatureData.addType(CSVReader::REAL); // Date
+    temperatureData.addType(CSVReader::REAL); // Temperature (c)
+    temperatureData.readFile("../data/_TEMP.csv");
+
+    std::vector<Temperatures> tRows =
+        temperatureData.copyToStruct<Temperatures>();
+    for (auto t : tRows) {
+      heat.data.push_back(t);
+    };
+
+    CSVReader bioDiversityData;
+    bioDiversityData.addType(CSVReader::REAL); // Name
+    bioDiversityData.addType(CSVReader::REAL); // Site
+    bioDiversityData.addType(CSVReader::REAL); // Date
+    bioDiversityData.addType(CSVReader::REAL); // Count
+    bioDiversityData.addType(CSVReader::REAL); // Transect
+    bioDiversityData.addType(CSVReader::REAL); // quad
+    bioDiversityData.addType(CSVReader::REAL); // Taxonomy | Phylum
+    bioDiversityData.addType(CSVReader::REAL); // Mobility
+    bioDiversityData.addType(CSVReader::REAL); // Growth_Morph
+    bioDiversityData.readFile("../data/_BIODIVERSE.csv");
+
+    std::vector<Biodiversities> bRows =
+        bioDiversityData.copyToStruct<Biodiversities>();
+    for (auto b : bRows) {
+      species[int(b.comName)].site[int(b.site)].data.push_back(b);
+    };
+
+    heat.init();
+    for (int i = 0; i < NUM_SPECIES; i++) {
+      for (int j = 0; j < NUM_SITES; j++) {
+        species[i].site[j].init();
+      }
+    }
 
     // compile shaders
     shader.compile(slurp("../paint-vertex.glsl"),
@@ -234,6 +277,17 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       const char *host = "127.0.0.1";
       osc::Send osc;
       osc.open(port, host);
+
+      // Update data, advance clock
+      //
+      float currentTime = c.now();
+      currentTemp = heat.update(currentTime);
+      for (int i = 0; i < NUM_SPECIES; i++) {
+        for (int j = 0; j < NUM_SITES; j++) {
+          species[i].site[j].update(currentTime);
+        }
+      }
+      c.update();
 
       // Rotate force field vectors
       //
