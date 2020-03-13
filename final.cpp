@@ -5,6 +5,12 @@
 //
 // TO DO:
 
+#define NUM_SPECIES (58)
+#define NUM_SITES (11)
+#define FLOCK_COUNT (NUM_SPECIES * NUM_SITES)
+#define FLOCK_SIZE (10)
+#define TAIL_LENGTH (25)
+
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
 #include "al/spatial/al_HashSpace.hpp"
@@ -92,12 +98,13 @@ struct Flock {
     Vec3f home;
     unsigned population;
     float hue;
+    int species;
     vector<Agent> agent;
 
-    Flock(Vec3f home_, unsigned population_, float hue_) {
+    Flock(Vec3f home_, unsigned population_, int species_) {
         home = home_;
         population = population_;
-        hue = hue_;
+        hue = (float)species_ / NUM_SPECIES;
 
         for (int i = 0; i < population; i++) {
             Agent a;
@@ -121,12 +128,6 @@ struct DrawableAgent {
         // active = that.active;
     }
 };
-
-#define NUM_SPECIES (58)
-#define NUM_SITES (11)
-#define FLOCK_COUNT (NUM_SPECIES * NUM_SITES)
-#define FLOCK_SIZE (20)
-#define TAIL_LENGTH (25)
 
 HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
 struct SharedState {
@@ -230,8 +231,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         int n = 0;
         for (int i = 0; i < FLOCK_COUNT; i++) {
             float t = i / float(FLOCK_COUNT) * M_PI * 2;
-            Flock f = Flock(Vec3f(0.5, 0.5, 0.5) + polToCar(0.5, t), FLOCK_SIZE,
-                            (float)i / (float)FLOCK_COUNT);
+            Flock f = Flock(Vec3f(0.5, 0.5, 0.5) + polToCar(2, t), FLOCK_SIZE, i / NUM_SITES);
             for (Agent a : f.agent) {
                 space.move(n,
                            a.pos() * space.dim());  // crashes when using "n"?
@@ -411,7 +411,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             state().cameraPose.set(nav());
             state().background = background;
             state().thickness = thickness.get();
-            cout << totalAgents << endl;
         } else {
             // use the camera position from the simulator
             //
@@ -447,7 +446,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     // const Vec3d &up(state().agent[i].orientation.toVectorY());
                     // c[i * TAIL_LENGTH].set(0.0f, 1.0f, 0.0f);
                 } else {
-                    t[k * TAIL_LENGTH].set(0.3, 4);
+                    t[k * TAIL_LENGTH].set(0.3, 4.0);
                 }
             }
         }

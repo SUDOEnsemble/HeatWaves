@@ -75,9 +75,9 @@ struct Site {
             float fract = fmodf(time * TIME_MOD, 1.0);
 
             float countDiff = data[k + 1].count - data[k].count;  // Species Count
-            currentCount = int(data[k].count + countDiff * fract);
-            if (currentCount > 20) {
-                currentCount = 20;
+            currentCount = ceil((data[k].count + countDiff * fract) / 100.0);
+            if (currentCount > 10) {
+                currentCount = 10;
                 // d = currentCount / (max - 25);
                 // currentCount = int((d * 25) + 50);
             }
