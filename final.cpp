@@ -32,6 +32,10 @@ float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
 
 Vec3f polToCar(float r, float t);
 
+// void initializeData(Heat &heat, Species *species);
+
+// void updateData(Clock c, Species *species);
+
 struct ForceField {
   int resolution; // number of divisions per axis
   vector<Vec3f> grid;
@@ -181,6 +185,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
     // Loading CSV data, initializing structs
     //
+
+    // initializeData(heat, species);
     CSVReader temperatureData;
     temperatureData.addType(CSVReader::REAL); // Date
     temperatureData.addType(CSVReader::REAL); // Temperature (c)
@@ -216,6 +222,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         species[i].site[j].init();
       }
     }
+
+    // updateData(Clock c, Species *species[])
+    currentTemp = heat.update(c.now());
+    for (int i = 0; i < NUM_SPECIES; i++) {
+      for (int j = 0; j < NUM_SITES; j++) {
+        species[i].site[j].update(c.now());
+      }
+    }
+    c.update();
 
     // compile shaders
     shader.compile(slurp("../paint-vertex.glsl"),
@@ -280,11 +295,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
       // Update data, advance clock
       //
-      float currentTime = c.now();
-      currentTemp = heat.update(currentTime);
+      // updateData(c, species);
+
+      currentTemp = heat.update(c.now());
       for (int i = 0; i < NUM_SPECIES; i++) {
         for (int j = 0; j < NUM_SITES; j++) {
-          species[i].site[j].update(currentTime);
+          species[i].site[j].update(c.now());
         }
       }
       c.update();
@@ -448,7 +464,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           if (t[j].y == 1) {
             v[j].set(state().agent[i].position);
           }
-          // c[j] =
           t[j].x = state().thickness;
         }
         // v[i] = state().agent[i].position;
@@ -505,3 +520,50 @@ Vec3f polToCar(float r, float t) {
   float y = r * sin(t);
   return Vec3f(x, 0, y);
 }
+
+// void initializeData(Heat &heat, Species *species) {
+//   CSVReader temperatureData;
+//   temperatureData.addType(CSVReader::REAL); // Date
+//   temperatureData.addType(CSVReader::REAL); // Temperature (c)
+//   temperatureData.readFile("../data/_TEMP.csv");
+
+//   std::vector<Temperatures> tRows =
+//       temperatureData.copyToStruct<Temperatures>();
+//   for (auto t : tRows) {
+//     heat.data.push_back(t);
+//   };
+
+//   CSVReader bioDiversityData;
+//   bioDiversityData.addType(CSVReader::REAL); // Name
+//   bioDiversityData.addType(CSVReader::REAL); // Site
+//   bioDiversityData.addType(CSVReader::REAL); // Date
+//   bioDiversityData.addType(CSVReader::REAL); // Count
+//   bioDiversityData.addType(CSVReader::REAL); // Transect
+//   bioDiversityData.addType(CSVReader::REAL); // quad
+//   bioDiversityData.addType(CSVReader::REAL); // Taxonomy | Phylum
+//   bioDiversityData.addType(CSVReader::REAL); // Mobility
+//   bioDiversityData.addType(CSVReader::REAL); // Growth_Morph
+//   bioDiversityData.readFile("../data/_BIODIVERSE.csv");
+
+//   std::vector<Biodiversities> bRows =
+//       bioDiversityData.copyToStruct<Biodiversities>();
+//   for (auto b : bRows) {
+//     species[int(b.comName)].site[int(b.site)].data.push_back(b);
+//   };
+
+//   heat.init();
+//   for (int i = 0; i < NUM_SPECIES; i++) {
+//     for (int j = 0; j < NUM_SITES; j++) {
+//       species[i].site[j].init();
+//     }
+//   }
+// }
+
+// void updateData(Clock c, Species *species[]) {
+//   for (int i = 0; i < NUM_SPECIES; i++) {
+//     for (int j = 0; j < NUM_SITES; j++) {
+//       species[i]->site[j].update(c.now());
+//     }
+//   }
+//   c.update();
+// }
