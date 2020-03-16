@@ -194,6 +194,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             heat.data.push_back(t);
         };
 
+        tRows.clear();
+
         CSVReader bioDiversityData;
         bioDiversityData.addType(CSVReader::REAL);  // Name
         bioDiversityData.addType(CSVReader::REAL);  // Site
@@ -210,6 +212,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         for (auto b : bRows) {
             species[int(b.comName)].site[int(b.site)].data.push_back(b);
         };
+
+        bRows.clear();
 
         heat.init();
         for (int i = 0; i < NUM_SPECIES; i++) {
@@ -249,16 +253,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     mesh.vertex(a.pos());
                     mesh.normal(a.uf());
                     if (j == 0) {
-                        // texcoord v 1 used to indicate head of a strip
-                        mesh.texCoord(thickness, 1.0);
+                        // texcoord y1 used to indicate head of a strip
+                        mesh.texCoord(0.0f, 1.0f);
                         mesh.color(1.0f, 1.0f, 1.0f);
                     } else if (j == TAIL_LENGTH - 1) {
-                        // texcoord 2 used to indicate tail of a strip
-                        mesh.texCoord(thickness, 2.0);
+                        // texcoord y2 used to indicate tail of a strip
+                        mesh.texCoord(0.0f, 2.0f);
                         mesh.color(HSV(f.hue, 1.0f, 1.0f));
                     } else {
-                        // texcoord 0 used to indicate body of a strip
-                        mesh.texCoord(thickness, 0.0);
+                        // texcoord y0 used to indicate body of a strip
+                        mesh.texCoord(0.0f, 0.0f);
                         mesh.color(HSV(f.hue, 1.0f, 1.0f));
                     }
                 }
@@ -291,7 +295,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             osc.open(port, host);
 
             float currentTime = c.now();
-
+            cout << "got here" << endl;
             currentTemp = heat.update(currentTime);
             // cout << currentTemp << endl;
             int sharedIndex = 0;
@@ -308,6 +312,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     Flock &f(flock[n]);
                     f.population = species[sp].site[si].currentCount;
                     totalAgents += f.population;
+                    f.home = species[sp].site[si].origin;
                     // Reset agent quantities before calculating frame
                     //
                     for (int i = 0; i < f.population; i++) {
@@ -318,6 +323,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     }
                     // Search for neighbors
                     //
+
                     float sum = 0;
                     for (int i = 0; i < f.population; i++) {
                         HashSpace::Query query(k);
@@ -435,27 +441,34 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         // for all agents in all flocks
         //
-        for (int i = 0; i < FLOCK_COUNT; i++) {
-            int flockStartIndex = i * FLOCK_SIZE;
-            for (int k = flockStartIndex; k < flockStartIndex + FLOCK_SIZE; k++) {
-                if (k - flockStartIndex < flock[i].population) {
-                    int headVertex = k * TAIL_LENGTH;
+        for (int flockIndex = 0; flockIndex < FLOCK_COUNT; flockIndex++) {
+            int flockStartIndex = flockIndex * FLOCK_SIZE;
+            for (int agentIndex = flockStartIndex; agentIndex < flockStartIndex + FLOCK_SIZE;
+                 agentIndex++) {
+                int headVertex = agentIndex * TAIL_LENGTH;
+
+                if (agentIndex - flockStartIndex < flock[flockIndex].population) {
                     // for body of each agent, counting down from its tail
                     //
-                    for (int j = headVertex + TAIL_LENGTH; j > headVertex; j--) {
-                        if (t[j].y != 1) v[j].lerp(v[j - 1], tailLength);
-                        if (t[j].y == 1) {
-                            v[j].set(state().agent[k].position);
+                    for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
+                         segmentVertex >= headVertex; segmentVertex--) {
+                        t[segmentVertex].x = 1.0f;
+
+                        if (t[segmentVertex].y != 1)
+                            v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
+                        if (t[segmentVertex].y == 1) {
+                            v[segmentVertex].set(state().agent[agentIndex].position);
                         }
-                        // c[j] =
-                        t[j].x = state().thickness;
                     }
                     // v[i] = state().agent[i].position;
-                    n[k * TAIL_LENGTH] = -state().agent[k].orientation.toVectorZ();
+                    n[agentIndex * TAIL_LENGTH] =
+                        -state().agent[agentIndex].orientation.toVectorZ();
                     // const Vec3d &up(state().agent[i].orientation.toVectorY());
                     // c[i * TAIL_LENGTH].set(0.0f, 1.0f, 0.0f);
                 } else {
-                    t[k * TAIL_LENGTH].set(0.3, 4.0);
+                    for (int i = headVertex; i < headVertex + TAIL_LENGTH; i++) {
+                        t[i].x = 0.0f;
+                    }
                 }
             }
         }
@@ -468,6 +481,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         gl::blending(true);
         gl::blendTrans();
         g.shader(shader);
+        g.shader().uniform("size", thickness);
         g.draw(mesh);
 
         if (cuttleboneDomain->isSender()) {
