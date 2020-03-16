@@ -10,6 +10,7 @@
 #define FLOCK_COUNT (NUM_SPECIES * NUM_SITES)
 #define FLOCK_SIZE (10)
 #define TAIL_LENGTH (25)
+#define BOUNDARY_RADIUS (10)
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
@@ -26,6 +27,7 @@ using namespace al;
 using namespace std;
 
 #include "HeatWave_Data.hpp"
+#include "field-trilinear-wiki.hpp"
 
 Vec3f rvU() { return Vec3f(rnd::uniform(), rnd::uniform(), rnd::uniform()); }
 
@@ -42,12 +44,12 @@ Vec3f polToCar(float r, float t);
 
 // void updateData(Clock c, Species *species);
 
-struct ForceField {
+struct FlowField {
   int resolution; // number of divisions per axis
   vector<Vec3f> grid;
   // Vec3f center;
 
-  ForceField(int r_) {
+  FlowField(int r_) {
     resolution = r_;
     for (int i = 0; i < pow(resolution, 3); i++) {
       Vec3f f = rvS();
@@ -70,7 +72,7 @@ struct Agent : Pose {
 
   // get address of container voxel
   //
-  Vec3i fieldAddress(ForceField &f) {
+  Vec3i fieldAddress(FlowField &f) {
     int &res(f.resolution);
     float x = scale(pos().x, 0, 1, 0, res, 1);
     float y = scale(pos().y, 0, 1, 0, res, 1);
@@ -80,7 +82,7 @@ struct Agent : Pose {
 
   // get index of container voxel as an int between 0 and f.resolution^3
   //
-  int fieldIndex(ForceField &f) {
+  int fieldIndex(FlowField &f) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f);
     return fA.x + fA.y * res + fA.z * res * res;
@@ -88,7 +90,7 @@ struct Agent : Pose {
 
   // return true if agent within {0, 0, 0} ... {1, 1, 1} cube
   //
-  bool withinBounds(ForceField &f) {
+  bool withinBounds(FlowField &f) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f);
     return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) &&
@@ -142,11 +144,13 @@ struct SharedState {
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter background{"/background", "", 0.1, "", 0.0, 1.0};
+  Parameter globalScale{"/globalScale", "", 1.0, "", 0.0, 2.0};
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
   Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
   Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
   ParameterInt k{"/k", "", 5, "", 1, 15};
-  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
+  Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
+  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
   Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
   ControlGUI gui;
@@ -155,7 +159,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Mesh mesh;
 
   vector<Flock> flock;
-  ForceField field = ForceField(8);
+  FlowField field = FlowField(8);
 
   Heat heat;
   Species species[58];
@@ -173,15 +177,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << background << moveRate << turnRate << localRadius << k
-        << fieldStrength << thickness << tailLength;
+    gui << background << globalScale << moveRate << turnRate << localRadius << k
+        << homing << fieldStrength << thickness << tailLength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << background << moveRate << turnRate << localRadius << k
-                      << fieldStrength << thickness << tailLength;
+    parameterServer() << background << globalScale << moveRate << turnRate
+                      << localRadius << k << homing << fieldStrength
+                      << thickness << tailLength;
 
     navControl().useMouse(false);
 
@@ -198,6 +203,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     for (auto t : tRows) {
       heat.data.push_back(t);
     };
+    tRows.clear();
 
     CSVReader bioDiversityData;
     bioDiversityData.addType(CSVReader::REAL); // Name
@@ -216,6 +222,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     for (auto b : bRows) {
       species[int(b.comName)].site[int(b.site)].data.push_back(b);
     };
+    bRows.clear();
 
     heat.init();
     for (int i = 0; i < NUM_SPECIES; i++) {
@@ -313,8 +320,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           // ???
 
           Flock &f(flock[n]);
+
+          // Update flock properties derived from the data
+          //
           f.population = species[sp].site[si].currentCount;
           totalAgents += f.population;
+          f.home = species[sp].site[si].origin * globalScale;
+
           // Reset agent quantities before calculating frame
           //
           for (int i = 0; i < f.population; i++) {
@@ -323,6 +335,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             f.agent[i].flockCount = 1;
             f.agent[i].acceleration.zero();
           }
+
           // Search for neighbors
           //
           float sum = 0;
@@ -375,7 +388,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
             // steer towards the home location
             //
-            f.agent[i].faceToward(f.home, 0.3 * turnRate);
+            f.agent[i].faceToward(f.home, homing * turnRate);
           }
 
           // change steering based on force field?
@@ -450,11 +463,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           int headVertex = k * TAIL_LENGTH;
           // for body of each agent, counting down from its tail
           //
-          for (int j = headVertex + TAIL_LENGTH; j > headVertex; j--) {
+          for (int j = headVertex + TAIL_LENGTH - 1; j >= headVertex; j--) {
             if (t[j].y != 1)
-              v[j].lerp(v[j - 1], tailLength);
+              // v[j].lerp(v[j - 1], tailLength);
+              v[j].set(v[j - 1]);
             if (t[j].y == 1) {
-              v[j].set(state().agent[k].position);
+              v[j].set(state().agent[k].position * globalScale);
             }
             // c[j] =
             t[j].x = state().thickness;
