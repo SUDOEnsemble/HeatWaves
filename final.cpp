@@ -5,11 +5,13 @@
 //
 // TO DO:
 
+#define BOUNDARY_RADIUS (20)
 #define NUM_SPECIES (58)
 #define NUM_SITES (11)
 #define FLOCK_COUNT (NUM_SPECIES * NUM_SITES)
 #define FLOCK_SIZE (10)
 #define TAIL_LENGTH (25)
+#define SPECK_COUNT (1000)
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
@@ -45,7 +47,6 @@ Vec3f polToCar(float r, float t);
 struct FlowField {
   int resolution; // number of divisions per axis
   vector<Vec3f> grid;
-  // Vec3f center;
 
   FlowField(int r_) {
     resolution = r_;
@@ -54,7 +55,6 @@ struct FlowField {
       f.normalize();
       grid.push_back(f);
     }
-    // center = Vec3f(0.5, 0.5, 0.5);
   }
 };
 
@@ -141,7 +141,9 @@ struct SharedState {
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
-  Parameter background{"/background", "", 0.1, "", 0.0, 1.0};
+  Parameter background{"/background", "", 8.0, "", 0.01, 16.0};
+  Parameter red{"/red", "", 0.0, "", 0.0, 1.0};
+  Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
   Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
   Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
@@ -150,6 +152,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
   Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
+  Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
+  Parameter value{"/value", "", 1.0, "", 0.0, 1.0};
+
   ControlGUI gui;
 
   ShaderProgram shader;
@@ -178,16 +183,18 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       quit();
     }
 
-    gui << background << moveRate << turnRate << localRadius << pointSize
-        << homing << fieldStrength << thickness << tailLength;
+    gui << background << red << globalScale << moveRate << turnRate
+        << localRadius << pointSize << homing << fieldStrength << thickness
+        << tailLength << saturation << value;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << background << moveRate << turnRate << localRadius
-                      << pointSize << homing << fieldStrength << thickness
-                      << tailLength;
+    parameterServer() << background << red << globalScale << moveRate
+                      << turnRate << localRadius << pointSize << homing
+                      << fieldStrength << thickness << tailLength << saturation
+                      << value;
 
     navControl().useMouse(false);
 
@@ -249,22 +256,24 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                         slurp("../speck-geometry.glsl"));
 
     // Background sphere
-    float r = 20;
-    addSphereWithTexcoords(backgroundSphere, r);
+    addSphereWithTexcoords(backgroundSphere, BOUNDARY_RADIUS);
     const size_t verts = backgroundSphere.vertices().size();
     auto &col = backgroundSphere.colors();
     col.resize(verts);
     for (size_t i = 0; i < verts; i += 1) {
-      col[i].set(0.0f, 0.0f, (backgroundSphere.vertices()[i].y + r) / (r * 8));
+      col[i].set(0.0f, 0.0f,
+                 (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                     (BOUNDARY_RADIUS * background));
       // std::cout << (backgroundSphere.vertices()[i].y + r) / (r * 2) <<
       // std::endl;
     }
 
     // Specks
     specks.primitive(Mesh::POINTS);
-    for (int i = 0; i < 400; i++) {
-      specks.vertex(Vec3f(rnd::uniformS() * r * 0.7, rnd::uniformS() * r * 0.7,
-                          rnd::uniformS() * r * 0.7));
+    for (int i = 0; i < SPECK_COUNT; i++) {
+      specks.vertex(Vec3f(rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7));
       specks.color(0.7, 1.0, 0.7, 0.4);
     }
 
@@ -276,7 +285,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       int si = i % NUM_SITES;
 
       Vec3f &h(species[sp].site[si].origin);
-
+      h.y -= 3;
       // float t = i / float(FLOCK_COUNT) * M_PI * 2;
       // Vec3f h = Vec3f(0.5, 0.5, 0.5) + polToCar(2, t)
 
@@ -309,7 +318,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       flock.push_back(f);
     }
 
-    nav().pos(0.5, 0.5, 0.5);
+    nav().pos(0.0, 0.0, 0.0);
   }
 
   float t = 0;
@@ -333,7 +342,18 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
       float currentTime = c.now();
       currentTemp = heat.update(currentTime);
-      // cout << currentTemp << endl;
+      float white = scale(currentTemp, heat.min, heat.max, 0.0f, 1.0f, 1.0f);
+
+      for (size_t i = 0; i < backgroundSphere.vertices().size(); i++) {
+        backgroundSphere.colors()[i].set(
+            white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                (BOUNDARY_RADIUS * background),
+            white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                (BOUNDARY_RADIUS * background),
+            (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                (BOUNDARY_RADIUS * background));
+      }
+
       int sharedIndex = 0;
       int totalAgents = 0;
       for (int sp = 0; sp < NUM_SPECIES; sp++) {
@@ -349,6 +369,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           f.population = species[sp].site[si].currentCount;
           totalAgents += f.population;
           f.home = species[sp].site[si].origin;
+          f.home.y -= 3;
           // Reset agent quantities before calculating frame
           //
           for (int i = 0; i < f.population; i++) {
@@ -479,6 +500,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     // for all agents in all flocks
     //
     for (int flockIndex = 0; flockIndex < FLOCK_COUNT; flockIndex++) {
+      Flock &f(flock[flockIndex]);
       int flockStartIndex = flockIndex * FLOCK_SIZE;
       for (int agentIndex = flockStartIndex;
            agentIndex < flockStartIndex + FLOCK_SIZE; agentIndex++) {
@@ -491,8 +513,10 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                segmentVertex >= headVertex; segmentVertex--) {
             t[segmentVertex].x = 1.0f;
 
-            if (t[segmentVertex].y != 1)
+            if (t[segmentVertex].y != 1) {
               v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
+              c[segmentVertex] = HSV(f.hue, saturation, value);
+            }
             if (t[segmentVertex].y == 1) {
               v[segmentVertex].set(state().agent[agentIndex].position);
             }
@@ -517,6 +541,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     gl::depthTesting(true);
     gl::blending(true);
     gl::blendTrans();
+    g.lighting(true);
+    g.scale(globalScale);
+
     g.shader(shader);
     g.shader().uniform("size", thickness);
     g.draw(mesh);
