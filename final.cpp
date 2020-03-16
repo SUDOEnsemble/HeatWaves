@@ -42,12 +42,12 @@ Vec3f polToCar(float r, float t);
 
 // void updateData(Clock c, Species *species);
 
-struct ForceField {
+struct FlowField {
   int resolution; // number of divisions per axis
   vector<Vec3f> grid;
   // Vec3f center;
 
-  ForceField(int r_) {
+  FlowField(int r_) {
     resolution = r_;
     for (int i = 0; i < pow(resolution, 3); i++) {
       Vec3f f = rvS();
@@ -70,25 +70,25 @@ struct Agent : Pose {
 
   // get address of container voxel
   //
-  Vec3i fieldAddress(ForceField &f) {
+  Vec3i fieldAddress(FlowField &f) {
     int &res(f.resolution);
-    float x = scale(pos().x, 0, 1, 0, res, 1);
-    float y = scale(pos().y, 0, 1, 0, res, 1);
-    float z = scale(pos().z, 0, 1, 0, res, 1);
+    float x = scale(pos().x, -8, 8, 0, res, 1);
+    float y = scale(pos().y, 0, 6, 0, res, 1);
+    float z = scale(pos().z, -8, 8, 0, res, 1);
     return Vec3i(floor(x), floor(y), floor(z));
   }
 
   // get index of container voxel as an int between 0 and f.resolution^3
   //
-  int fieldIndex(ForceField &f) {
+  int fieldIndex(FlowField &f) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f);
     return fA.x + fA.y * res + fA.z * res * res;
   }
 
-  // return true if agent within {0, 0, 0} ... {1, 1, 1} cube
+  // return true if agent within FlowField cube
   //
-  bool withinBounds(ForceField &f) {
+  bool withinBounds(FlowField &f) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f);
     return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) &&
@@ -146,8 +146,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
   Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
   Parameter pointSize{"/pointSize", "", 0.51, "", 0.0, 3.0};
-
-  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
+  Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
+  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
   Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
   ControlGUI gui;
@@ -160,7 +160,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Mesh specks;
 
   vector<Flock> flock;
-  ForceField field = ForceField(8);
+  FlowField field = FlowField(8);
 
   Heat heat;
   Species species[58];
@@ -179,14 +179,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     }
 
     gui << background << moveRate << turnRate << localRadius << pointSize
-        << fieldStrength << thickness << tailLength;
+        << homing << fieldStrength << thickness << tailLength;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
     parameterServer() << background << moveRate << turnRate << localRadius
-                      << pointSize << fieldStrength << thickness << tailLength;
+                      << pointSize << homing << fieldStrength << thickness
+                      << tailLength;
 
     navControl().useMouse(false);
 
@@ -409,7 +410,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
             // steer towards the home location
             //
-            f.agent[i].faceToward(f.home, 0.3 * turnRate);
+            f.agent[i].faceToward(f.home, homing * turnRate);
           }
 
           // change steering based on force field?
@@ -421,7 +422,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             //
             f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
 
-            // force field
+            // flow field
             //
             if (f.agent[i].withinBounds(field)) {
               f.agent[i].acceleration +=
