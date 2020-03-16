@@ -143,14 +143,19 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
     Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
     Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
-    ParameterInt k{"/k", "", 5, "", 1, 15};
+    Parameter pointSize{"/pointSize", "", 0.51, "", 0.0, 3.0};
+
     Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 1.0};
     Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
     Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
     ControlGUI gui;
 
     ShaderProgram shader;
+    ShaderProgram speckShader;
+
     Mesh mesh;
+    Mesh backgroundSphere;
+    Mesh specks;
 
     vector<Flock> flock;
     ForceField field = ForceField(8);
@@ -169,15 +174,15 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             quit();
         }
 
-        gui << background << moveRate << turnRate << localRadius << k << fieldStrength << thickness
-            << tailLength;
+        gui << background << moveRate << turnRate << localRadius << pointSize << fieldStrength
+            << thickness << tailLength;
         gui.init();
 
         // DistributedApp provides a parameter server.
         // This links the parameters between "simulator" and "renderers"
         // automatically
-        parameterServer() << background << moveRate << turnRate << localRadius << k << fieldStrength
-                          << thickness << tailLength;
+        parameterServer() << background << moveRate << turnRate << localRadius << pointSize
+                          << fieldStrength << thickness << tailLength;
 
         navControl().useMouse(false);
 
@@ -230,6 +235,28 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         // compile shaders
         shader.compile(slurp("../paint-vertex.glsl"), slurp("../paint-fragment.glsl"),
                        slurp("../paint-geometry.glsl"));
+
+        speckShader.compile(slurp("../speck-vertex.glsl"), slurp("../speck-fragment.glsl"),
+                            slurp("../speck-geometry.glsl"));
+
+        // Background sphere
+        float r = 20;
+        addSphereWithTexcoords(backgroundSphere, r);
+        const size_t verts = backgroundSphere.vertices().size();
+        auto &col = backgroundSphere.colors();
+        col.resize(verts);
+        for (size_t i = 0; i < verts; i += 1) {
+            col[i].set(0.0f, 0.0f, (backgroundSphere.vertices()[i].y + r) / (r * 8));
+            // std::cout << (backgroundSphere.vertices()[i].y + r) / (r * 2) << std::endl;
+        }
+
+        // Specks
+        specks.primitive(Mesh::POINTS);
+        for (int i = 0; i < 400; i++) {
+            specks.vertex(Vec3f(rnd::uniformS() * r * 0.7, rnd::uniformS() * r * 0.7,
+                                rnd::uniformS() * r * 0.7));
+            specks.color(0.7, 1.0, 0.7, 0.4);
+        }
 
         mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
 
@@ -295,7 +322,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             osc.open(port, host);
 
             float currentTime = c.now();
-            cout << "got here" << endl;
             currentTemp = heat.update(currentTime);
             // cout << currentTemp << endl;
             int sharedIndex = 0;
@@ -324,19 +350,19 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     // Search for neighbors
                     //
 
-                    float sum = 0;
-                    for (int i = 0; i < f.population; i++) {
-                        HashSpace::Query query(k);
-                        int results = query(space, f.agent[i].pos() * space.dim(),
-                                            space.maxRadius() * localRadius);
-                        for (int j = 0; j < results; j++) {
-                            int id = query[j]->id;
-                            f.agent[i].heading += f.agent[id].uf();
-                            f.agent[i].center += f.agent[id].pos();
-                            f.agent[i].flockCount++;
-                        }
-                        sum += f.agent[i].flockCount;
-                    }
+                    // float sum = 0;
+                    // for (int i = 0; i < f.population; i++) {
+                    //     // HashSpace::Query query(k);
+                    //     int results = query(space, f.agent[i].pos() * space.dim(),
+                    //                         space.maxRadius() * localRadius);
+                    //     for (int j = 0; j < results; j++) {
+                    //         int id = query[j]->id;
+                    //         f.agent[i].heading += f.agent[id].uf();
+                    //         f.agent[i].center += f.agent[id].pos();
+                    //         f.agent[i].flockCount++;
+                    //     }
+                    //     sum += f.agent[i].flockCount;
+                    // }
 
                     // if (frameCount == 0) //
                     //   cout << sum / f.population << "nn" << endl;
@@ -483,6 +509,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         g.shader(shader);
         g.shader().uniform("size", thickness);
         g.draw(mesh);
+
+        g.meshColor();
+        g.draw(backgroundSphere);
+
+        g.shader(speckShader);
+        g.shader().uniform("pointSize", pointSize / 100);
+        g.draw(specks);
 
         if (cuttleboneDomain->isSender()) {
             gui.draw(g);
