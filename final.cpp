@@ -46,6 +46,7 @@ Vec3f polToCar(float r, float t);
 struct FlowField {
     int resolution;  // number of divisions per axis
     vector<Vec3f> grid;
+    vector<bool> perimeter;
 
     FlowField(int r_) {
         resolution = r_;
@@ -55,6 +56,13 @@ struct FlowField {
             grid.push_back(f);
         }
     }
+
+    void rotate() {
+        for (int i = 0; i < grid.size(); i++) {
+            grid[i] += rvS() * 0.01;
+            if (grid[i].mag() > 1) grid[i].normalize();
+        }
+    }
 };
 
 struct Agent : Pose {
@@ -62,6 +70,7 @@ struct Agent : Pose {
 };
 
 // Flow field functions
+//
 Vec3i fieldAddress(FlowField &f, Vec3f p) {
     int &res(f.resolution);
     float x = scale(p.x, -BOUNDARY_RADIUS, BOUNDARY_RADIUS, 0, res, 1);
@@ -162,6 +171,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     float currentTemp = -1;
 
     std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>> cuttleboneDomain;
+
+    Mesh vectorVis;  // mesh for drawing a line visualizing a vector
 
     // Setup OSC
     //
@@ -327,6 +338,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         nav().pos(0.0, 0.0, 0.0);
         osc.open(port, host);
+
+        vectorVis.primitive(Mesh::LINES);
+        vectorVis.color(1, 1, 1);
+        vectorVis.color(1, 1, 1);
+        vectorVis.vertex(0, 0, 0);
+        vectorVis.vertex(0, 0, 0);
     }
 
     float t = 0;
@@ -344,7 +361,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
             // Rotate force field vectors
             //
-            // ???
+            field.rotate();
 
             float currentTime = c.now();
             currentTemp = heat.update(currentTime);
@@ -397,6 +414,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                                 f.agent[i].acceleration +=
                                     field.grid.at(fieldIndex(field, f.agent[i].pos())) *
                                     ((float)fieldStrength / 1000);
+                            } else {
+                                f.agent[i].acceleration += -f.agent[i].pos().normalized() * 0.1;
                             }
 
                             // drag
@@ -436,6 +455,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                 if (withinBounds(field, specks.vertices()[i])) {
                     speckVelocities[i] += field.grid.at(fieldIndex(field, specks.vertices()[i])) *
                                           ((float)fieldStrength / 1000);
+                } else {
+                    speckVelocities[i] += -state().speckPos[i].normalized() * 0.1;
                 }
                 // drag
                 speckVelocities[i] += -speckVelocities[i] * 0.01;
@@ -446,10 +467,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
                 if (i % TAIL_LENGTH != 0) {
                     // acceleration due to flowfield
-                    if (withinBounds(field, specks.vertices()[i])) {
+                    if (withinBounds(field, state().kelpVerts[i])) {
                         kelpVelocities[i] +=
                             field.grid.at(fieldIndex(field, state().kelpVerts[i])) *
                             ((float)fieldStrength / 10000);
+                    } else {
+                        kelpVelocities[i] += -state().kelpVerts[i].normalized() * 0.1;
                     }
 
                     // structural integrity
@@ -533,15 +556,17 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                 }
             }
         }
+        vectorVis.vertices()[1].set(field.grid[1]);  // add vector to be visualized here
     };
 
     void onDraw(Graphics &g) override {
-        g.clear(0);
+        // float f = state().background;
+        g.clear(0, 0, 0.2);
         gl::depthTesting(true);
         gl::blending(true);
         gl::blendTrans();
-        g.lighting(true);
-        g.light(light);
+        // g.lighting(true);
+        // g.light(light);
         g.scale(globalScale);
 
         g.shader(shader);
@@ -550,6 +575,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         g.meshColor();
         g.draw(backgroundSphere);
+        // g.draw(vectorVis);
 
         g.shader(speckShader);
         g.shader().uniform("pointSize", speckSize / 100);
