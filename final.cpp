@@ -58,23 +58,23 @@ struct Agent : Pose {
 };
 
 // Flow field functions
-Vec3i fieldAddress(FlowField &f, Pose &p) {
+Vec3i fieldAddress(FlowField &f, Vec3f p) {
     int &res(f.resolution);
-    float x = scale(p.pos().x, -8, 8, 0, res, 1);
-    float y = scale(p.pos().y, 0, 6, 0, res, 1);
-    float z = scale(p.pos().z, -8, 8, 0, res, 1);
+    float x = scale(p.x, -BOUNDARY_RADIUS, BOUNDARY_RADIUS, 0, res, 1);
+    float y = scale(p.y, -BOUNDARY_RADIUS, BOUNDARY_RADIUS, 0, res, 1);
+    float z = scale(p.z, -BOUNDARY_RADIUS, BOUNDARY_RADIUS, 0, res, 1);
     return Vec3i(floor(x), floor(y), floor(z));
 }
 // get index of container voxel as an int between 0 and f.resolution^3
 //
-int fieldIndex(FlowField &f, Pose &p) {
+int fieldIndex(FlowField &f, Vec3f p) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f, p);
     return fA.x + fA.y * res + fA.z * res * res;
 }
 // return true if agent within FlowField cube
 //
-bool withinBounds(FlowField &f, Pose &p) {
+bool withinBounds(FlowField &f, Vec3f p) {
     int &res(f.resolution);
     Vec3i fA = fieldAddress(f, p);
     return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) && (fA.z >= 0 && fA.z < res);
@@ -118,6 +118,7 @@ struct SharedState {
     float background;
     float thickness;
     DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
+    Vec3f speckPos[SPECK_COUNT];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
@@ -127,7 +128,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
     Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
     Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
-    Parameter pointSize{"/pointSize", "", 0.51, "", 0.0, 3.0};
+    Parameter speckSize{"/speckSize", "", 0.51, "", 0.0, 5.0};
     Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
     Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
     Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
@@ -143,6 +144,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Mesh mesh;
     Mesh backgroundSphere;
     Mesh specks;
+    Vec3f speckVelocities[SPECK_COUNT];
+
+    Light light;
 
     vector<Flock> flock;
     FlowField field = FlowField(8);
@@ -167,7 +171,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             quit();
         }
 
-        gui << background << red << globalScale << moveRate << turnRate << localRadius << pointSize
+        gui << background << red << globalScale << moveRate << turnRate << localRadius << speckSize
             << homing << fieldStrength << thickness << tailLength << saturation << value;
         gui.init();
 
@@ -175,7 +179,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         // This links the parameters between "simulator" and "renderers"
         // automatically
         parameterServer() << background << red << globalScale << moveRate << turnRate << localRadius
-                          << pointSize << homing << fieldStrength << thickness << tailLength
+                          << speckSize << homing << fieldStrength << thickness << tailLength
                           << saturation << value;
 
         navControl().useMouse(false);
@@ -245,11 +249,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         // Specks
         specks.primitive(Mesh::POINTS);
         for (int i = 0; i < SPECK_COUNT; i++) {
-            specks.vertex(Vec3f(rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
-                                rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
-                                rnd::uniformS() * BOUNDARY_RADIUS * 0.7));
+            state().speckPos[i].set(Vec3f(rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7));
+            specks.vertex(state().speckPos[i]);
             specks.color(0.7, 1.0, 0.7, 0.4);
         }
+
+        // lighting
+        light.pos(0.0, (globalScale * BOUNDARY_RADIUS) + 10, 0.0);
+        light.diffuse(RGB(1, 1, 1));
 
         // Make Agents/Flocks
         mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
@@ -353,9 +362,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
                         // flow field effect on agent
                         //
-                        if (withinBounds(field, f.agent[i])) {
+                        if (withinBounds(field, f.agent[i].pos())) {
                             f.agent[i].acceleration +=
-                                field.grid.at(fieldIndex(field, f.agent[i])) *
+                                field.grid.at(fieldIndex(field, f.agent[i].pos())) *
                                 ((float)fieldStrength / 1000);
                         }
 
@@ -388,6 +397,21 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     }
                 }
             }
+
+            // move specks
+            for (int i = 0; i < SPECK_COUNT; i++) {
+                // flow field effect on speck
+                //
+                if (withinBounds(field, specks.vertices()[i])) {
+                    // acceleration due to flowfield
+                    speckVelocities[i] += field.grid.at(fieldIndex(field, specks.vertices()[i])) *
+                                          ((float)fieldStrength / 1000);
+                    // drag
+                    speckVelocities[i] += -speckVelocities[i] * 0.01;
+                    state().speckPos[i] += speckVelocities[i];
+                }
+            }
+
             c.update();
             state().cameraPose.set(nav());
             state().background = background;
@@ -404,6 +428,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         vector<Vec2f> &t(mesh.texCoord2s());
         vector<Vec3f> &n(mesh.normals());
         vector<Color> &c(mesh.colors());
+
+        // set speck position
+        for (int i = 0; i < SPECK_COUNT; i++) {
+            specks.vertices()[i].set(state().speckPos[i]);
+        }
 
         // for all agents in all flocks
         //
@@ -446,6 +475,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         gl::blending(true);
         gl::blendTrans();
         g.lighting(true);
+        g.light(light);
         g.scale(globalScale);
 
         g.shader(shader);
@@ -456,7 +486,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         g.draw(backgroundSphere);
 
         g.shader(speckShader);
-        g.shader().uniform("pointSize", pointSize / 100);
+        g.shader().uniform("pointSize", speckSize / 100);
         g.draw(specks);
 
         if (cuttleboneDomain->isSender()) {
