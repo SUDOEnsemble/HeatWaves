@@ -28,5 +28,5 @@ void main() {
     // // put 1.0 - fogFactor
     // finalColor = mix(fogColor, lightColor, fogFactor);
 
-    fragmentColor = vec4(fragment.color.xyz, 0.9);
+    fragmentColor = vec4(fragment.color);
 }

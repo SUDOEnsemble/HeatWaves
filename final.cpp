@@ -4,6 +4,9 @@
 // MAT-201B W20
 //
 // TO DO:
+// Make outside flow field push in
+// Tie temp to color in a cool way
+// fix global scale
 
 #define BOUNDARY_RADIUS (20)
 #define NUM_SPECIES (58)
@@ -12,6 +15,7 @@
 #define FLOCK_SIZE (10)
 #define TAIL_LENGTH (25)
 #define SPECK_COUNT (1000)
+#define kelpLength (1.0)
 
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
@@ -119,6 +123,7 @@ struct SharedState {
     float thickness;
     DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
     Vec3f speckPos[SPECK_COUNT];
+    Vec3f kelpVerts[FLOCK_SIZE * NUM_SITES * TAIL_LENGTH * 2];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
@@ -127,7 +132,6 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
     Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
     Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
-    Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
     Parameter speckSize{"/speckSize", "", 0.51, "", 0.0, 5.0};
     Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
     Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
@@ -145,6 +149,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Mesh backgroundSphere;
     Mesh specks;
     Vec3f speckVelocities[SPECK_COUNT];
+    Vec3f kelpVelocities[FLOCK_SIZE * NUM_SITES * TAIL_LENGTH * 2];
 
     Light light;
 
@@ -171,16 +176,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             quit();
         }
 
-        gui << background << red << globalScale << moveRate << turnRate << localRadius << speckSize
-            << homing << fieldStrength << thickness << tailLength << saturation << value;
+        gui << background << red << globalScale << moveRate << turnRate << speckSize << homing
+            << fieldStrength << thickness << tailLength << saturation << value;
         gui.init();
 
         // DistributedApp provides a parameter server.
         // This links the parameters between "simulator" and "renderers"
         // automatically
-        parameterServer() << background << red << globalScale << moveRate << turnRate << localRadius
-                          << speckSize << homing << fieldStrength << thickness << tailLength
-                          << saturation << value;
+        parameterServer() << background << red << globalScale << moveRate << turnRate << speckSize
+                          << homing << fieldStrength << thickness << tailLength << saturation
+                          << value;
 
         navControl().useMouse(false);
 
@@ -262,7 +267,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         // Make Agents/Flocks
         mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
-        int n = 0;
+        int kelp = 0;
         for (int i = 0; i < FLOCK_COUNT; i++) {
             int sp = i / NUM_SITES;
             int si = i % NUM_SITES;
@@ -274,24 +279,48 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
             for (Agent a : f.agent) {
                 for (int j = 0; j < TAIL_LENGTH; j++) {
-                    mesh.vertex(a.pos());
-                    mesh.normal(a.uf());
-                    if (j == 0) {
-                        // texcoord x is boolean "alive" state, y=1 used to indicate head of a strip
-                        mesh.texCoord(0.0f, 1.0f);
-                        mesh.color(1.0f, 1.0f, 1.0f);
-                    } else if (j == TAIL_LENGTH - 1) {
-                        // texcoord y=2 used to indicate tail of a strip
-                        mesh.texCoord(0.0f, 2.0f);
-                        mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                    if (sp != 16 && sp != 56) {
+                        mesh.vertex(a.pos());
+                        mesh.normal(a.uf());
+                        if (j == 0) {
+                            // texcoord x is boolean "alive" state, y=1 used to indicate head of a
+                            // strip
+                            mesh.texCoord(0.0f, 1.0f);
+                            mesh.color(1.0f, 1.0f, 1.0f);
+                        } else if (j == TAIL_LENGTH - 1) {
+                            // texcoord y=2 used to indicate tail of a strip
+                            mesh.texCoord(0.0f, 2.0f);
+                            mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                        } else {
+                            // texcoord y=0 used to indicate body of a strip
+                            mesh.texCoord(0.0f, 0.0f);
+                            mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                        }
                     } else {
-                        // texcoord y=0 used to indicate body of a strip
-                        mesh.texCoord(0.0f, 0.0f);
-                        mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                        // int which = sp == 16 ? 1 : 2;
+                        // int vert = (si * FLOCK_SIZE * which) + (ag * TAIL_LENGTH) + j;
+                        state().kelpVerts[kelp].set(a.pos().x + rnd::uniformS() / 10,
+                                                    -BOUNDARY_RADIUS + (j * kelpLength),
+                                                    a.pos().z + rnd::uniformS() / 10);
+                        mesh.vertex(state().kelpVerts[kelp]);
+                        mesh.normal(a.uf());
+                        if (j == 0) {
+                            // texcoord x is boolean "alive" state, y=1 used to indicate head of a
+                            // strip
+                            mesh.texCoord(0.0f, 1.0f);
+                            mesh.color(0.0f, 0.0f, 0.0f);
+                        } else if (j == TAIL_LENGTH - 1) {
+                            // texcoord y=2 used to indicate tail of a strip
+                            mesh.texCoord(0.0f, 2.0f);
+                            mesh.color(0.0, 0.4, 0.0, 0.8);
+                        } else {
+                            // texcoord y=0 used to indicate body of a strip
+                            mesh.texCoord(0.0f, 0.0f);
+                            mesh.color(0.0, 0.3, 0.0, 0.4);
+                        }
+                        kelp++;
                     }
                 }
-
-                n++;
             }
             flock.push_back(f);
         }
@@ -346,72 +375,96 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     f.home = species[sp].site[si].origin;
                     f.home.y -= 3;
 
-                    // Reset agent quantities before calculating frame
-                    //
-                    for (int i = 0; i < f.population; i++) {
-                        f.agent[i].acceleration.zero();
-                    }
+                    if (sp != 16 && sp != 56) {  // if species is not kelp
 
-                    // Apply forces to each agent
-                    for (int i = 0; i < f.population; i++) {
-                        // turn a bit toward home
-                        f.agent[i].faceToward(f.home, homing * turnRate);
-
-                        // move ahead
-                        f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
-
-                        // flow field effect on agent
+                        // Reset agent quantities before calculating frame
                         //
-                        if (withinBounds(field, f.agent[i].pos())) {
-                            f.agent[i].acceleration +=
-                                field.grid.at(fieldIndex(field, f.agent[i].pos())) *
-                                ((float)fieldStrength / 1000);
+                        for (int i = 0; i < f.population; i++) {
+                            f.agent[i].acceleration.zero();
                         }
 
-                        // drag
+                        // Apply forces to each agent
+                        for (int i = 0; i < f.population; i++) {
+                            // turn a bit toward home
+                            f.agent[i].faceToward(f.home, homing * turnRate);
+
+                            // move ahead
+                            f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
+
+                            // flow field effect on agent
+                            //
+                            if (withinBounds(field, f.agent[i].pos())) {
+                                f.agent[i].acceleration +=
+                                    field.grid.at(fieldIndex(field, f.agent[i].pos())) *
+                                    ((float)fieldStrength / 1000);
+                            }
+
+                            // drag
+                            //
+                            f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
+                        }
+
+                        // Integration
                         //
-                        f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
-                    }
+                        for (int i = 0; i < f.population; i++) {
+                            // "backward" Euler integration
+                            //
+                            f.agent[i].velocity += f.agent[i].acceleration;
+                            f.agent[i].pos() += f.agent[i].velocity;
+                        }
 
-                    // Integration
-                    //
-                    for (int i = 0; i < f.population; i++) {
-                        // "backward" Euler integration
+                        // Send positions over OSC
                         //
-                        f.agent[i].velocity += f.agent[i].acceleration;
-                        f.agent[i].pos() += f.agent[i].velocity;
-                    }
+                        for (int i = 0; i < f.population; i++) {
+                            Vec3d &pos(f.agent[i].pos());
+                            osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
+                        }
 
-                    // Send positions over OSC
-                    //
-                    for (int i = 0; i < f.population; i++) {
-                        Vec3d &pos(f.agent[i].pos());
-                        osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
-                    }
-
-                    // Copy all the agents into shared state;
-                    //
-                    for (unsigned i = 0; i < FLOCK_SIZE; i++) {
-                        state().agent[sharedIndex].from(f.agent[i]);
-                        sharedIndex++;
+                        // Copy all the agents into shared state;
+                        //
+                        for (unsigned i = 0; i < FLOCK_SIZE; i++) {
+                            state().agent[sharedIndex].from(f.agent[i]);
+                            sharedIndex++;
+                        }
                     }
                 }
             }
 
             // move specks
             for (int i = 0; i < SPECK_COUNT; i++) {
-                // flow field effect on speck
-                //
+                // acceleration due to flowfield
                 if (withinBounds(field, specks.vertices()[i])) {
-                    // acceleration due to flowfield
                     speckVelocities[i] += field.grid.at(fieldIndex(field, specks.vertices()[i])) *
                                           ((float)fieldStrength / 1000);
-                    // drag
-                    speckVelocities[i] += -speckVelocities[i] * 0.01;
-                    state().speckPos[i] += speckVelocities[i];
                 }
+                // drag
+                speckVelocities[i] += -speckVelocities[i] * 0.01;
+                state().speckPos[i] += speckVelocities[i];
             }
 
+            // move kelp
+            for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
+                if (i % TAIL_LENGTH != 0) {
+                    // acceleration due to flowfield
+                    if (withinBounds(field, specks.vertices()[i])) {
+                        kelpVelocities[i] +=
+                            field.grid.at(fieldIndex(field, state().kelpVerts[i])) *
+                            ((float)fieldStrength / 10000);
+                    }
+
+                    // structural integrity
+                    Vec3f diff = state().kelpVerts[i - 1] - state().kelpVerts[i];
+                    if (diff.mag() > kelpLength) {
+                        kelpVelocities[i] += diff.normalized() * (diff.mag() - kelpLength) * 0.0001;
+                    }
+
+                    // drag
+                    kelpVelocities[i] += -kelpVelocities[i] * 0.01;
+
+                    state().kelpVerts[i] += kelpVelocities[i];
+                }
+            }
+            // cout << 25 % 25 << endl;
             c.update();
             state().cameraPose.set(nav());
             state().background = background;
@@ -434,9 +487,20 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             specks.vertices()[i].set(state().speckPos[i]);
         }
 
+        // set kelp position
+        int segmentVertex = 16 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
+        for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
+            v[segmentVertex].set(state().kelpVerts[i]);
+            segmentVertex++;
+            if (segmentVertex == (17 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES))
+                segmentVertex = 56 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
+        }
+
         // for all agents in all flocks
         //
+
         for (int iflock = 0; iflock < FLOCK_COUNT; iflock++) {  // for each flock
+            int sp = iflock / NUM_SITES;
             Flock &f(flock[iflock]);
             int flockStartIndex = iflock * FLOCK_SIZE;  // index of first agent in flock
             for (int iagent = flockStartIndex; iagent < flockStartIndex + FLOCK_SIZE;
@@ -449,13 +513,16 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                     for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
                          segmentVertex >= headVertex; segmentVertex--) {  // for each vertex
                         t[segmentVertex].x = 1.0f;
+                        if (sp != 16 && sp != 56) {
+                            if (t[segmentVertex].y != 1) {  // if not a head segment, follow head
+                                v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
+                                c[segmentVertex] = HSV(f.hue, saturation, value);
+                                c[segmentVertex].a = 0.6;
+                            }
 
-                        if (t[segmentVertex].y != 1) {  // if not a head segment, follow head
-                            v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
-                            c[segmentVertex] = HSV(f.hue, saturation, value);
-                        }
-                        if (t[segmentVertex].y == 1) {  // if head, lead the way
-                            v[segmentVertex].set(state().agent[iagent].position);
+                            if (t[segmentVertex].y == 1) {  // if head, lead the way
+                                v[segmentVertex].set(state().agent[iagent].position);
+                            }
                         }
                     }
                     n[iagent * TAIL_LENGTH] = -state().agent[iagent].orientation.toVectorZ();
@@ -469,8 +536,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     };
 
     void onDraw(Graphics &g) override {
-        float f = state().background;
-        g.clear(f, f, f);
+        g.clear(0);
         gl::depthTesting(true);
         gl::blending(true);
         gl::blendTrans();
