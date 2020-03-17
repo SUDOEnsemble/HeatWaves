@@ -35,604 +35,462 @@ Vec3f rvS() { return Vec3f(rnd::uniformS(), rnd::uniformS(), rnd::uniformS()); }
 
 string slurp(string fileName);
 
-float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
-            float curve);
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh, float curve);
 
 Vec3f polToCar(float r, float t);
 
-// void initializeData(Heat &heat, Species *species);
-
-// void updateData(Clock c, Species *species);
-
 struct FlowField {
-  int resolution; // number of divisions per axis
-  vector<Vec3f> grid;
+    int resolution;  // number of divisions per axis
+    vector<Vec3f> grid;
 
-  FlowField(int r_) {
-    resolution = r_;
-    for (int i = 0; i < pow(resolution, 3); i++) {
-      Vec3f f = rvS();
-      f.normalize();
-      grid.push_back(f);
+    FlowField(int r_) {
+        resolution = r_;
+        for (int i = 0; i < pow(resolution, 3); i++) {
+            Vec3f f = rvS();
+            f.normalize();
+            grid.push_back(f);
+        }
     }
-  }
 };
 
 struct Agent : Pose {
-  Vec3f heading, center;
-  Vec3f velocity, acceleration;
-  unsigned flockCount{1};
-  // bool active;
-
-  // void setActive(bool b) { active = b; }
-
-  // bool isActive() { return active; }
-
-  // get address of container voxel
-  //
-  Vec3i fieldAddress(FlowField &f) {
-    int &res(f.resolution);
-    float x = scale(pos().x, -8, 8, 0, res, 1);
-    float y = scale(pos().y, 0, 6, 0, res, 1);
-    float z = scale(pos().z, -8, 8, 0, res, 1);
-    return Vec3i(floor(x), floor(y), floor(z));
-  }
-
-  // get index of container voxel as an int between 0 and f.resolution^3
-  //
-  int fieldIndex(FlowField &f) {
-    int &res(f.resolution);
-    Vec3i fA = fieldAddress(f);
-    return fA.x + fA.y * res + fA.z * res * res;
-  }
-
-  // return true if agent within FlowField cube
-  //
-  bool withinBounds(FlowField &f) {
-    int &res(f.resolution);
-    Vec3i fA = fieldAddress(f);
-    return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) &&
-           (fA.z >= 0 && fA.z < res);
-  }
+    Vec3f velocity, acceleration;
 };
 
+// Flow field functions
+Vec3i fieldAddress(FlowField &f, Pose &p) {
+    int &res(f.resolution);
+    float x = scale(p.pos().x, -8, 8, 0, res, 1);
+    float y = scale(p.pos().y, 0, 6, 0, res, 1);
+    float z = scale(p.pos().z, -8, 8, 0, res, 1);
+    return Vec3i(floor(x), floor(y), floor(z));
+}
+// get index of container voxel as an int between 0 and f.resolution^3
+//
+int fieldIndex(FlowField &f, Pose &p) {
+    int &res(f.resolution);
+    Vec3i fA = fieldAddress(f, p);
+    return fA.x + fA.y * res + fA.z * res * res;
+}
+// return true if agent within FlowField cube
+//
+bool withinBounds(FlowField &f, Pose &p) {
+    int &res(f.resolution);
+    Vec3i fA = fieldAddress(f, p);
+    return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) && (fA.z >= 0 && fA.z < res);
+}
+
 struct Flock {
-  Vec3f home;
-  unsigned population;
-  float hue;
-  int species;
-  vector<Agent> agent;
+    Vec3f home;
+    unsigned population;
+    float hue;
+    int species;
+    vector<Agent> agent;
 
-  Flock(Vec3f home_, unsigned population_, int species_) {
-    home = home_;
-    population = population_;
-    species = species_;
-    hue = (float)species / NUM_SPECIES;
+    Flock(Vec3f home_, unsigned population_, int species_) {
+        home = home_;
+        population = population_;
+        species = species_;
+        hue = (float)species / NUM_SPECIES;
 
-    for (int i = 0; i < population; i++) {
-      Agent a;
-      a.pos(home);
-      a.faceToward(rvU());
-      // a.setActive(true);
-      agent.push_back(a);
+        for (int i = 0; i < population; i++) {
+            Agent a;
+            a.pos(home);
+            a.faceToward(rvU());
+            // a.setActive(true);
+            agent.push_back(a);
+        }
     }
-  }
 };
 
 struct DrawableAgent {
-  Vec3f position;
-  Quatf orientation;
-  // bool active;
-  // float hue;
+    Vec3f position;
+    Quatf orientation;
 
-  void from(const Agent &that) {
-    position.set(that.pos());
-    orientation.set(that.quat());
-    // active = that.active;
-  }
+    void from(const Agent &that) {
+        position.set(that.pos());
+        orientation.set(that.quat());
+    }
 };
 
-HashSpace space(6, (FLOCK_COUNT * FLOCK_SIZE));
 struct SharedState {
-  Pose cameraPose;
-  float background;
-  float thickness;
-  DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
+    Pose cameraPose;
+    float background;
+    float thickness;
+    DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
-  Parameter background{"/background", "", 8.0, "", 0.01, 16.0};
-  Parameter red{"/red", "", 0.0, "", 0.0, 1.0};
-  Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
-  Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
-  Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
-  Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
-  Parameter pointSize{"/pointSize", "", 0.51, "", 0.0, 3.0};
-  Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
-  Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
-  Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
-  Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
-  Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
-  Parameter value{"/value", "", 1.0, "", 0.0, 1.0};
+    Parameter background{"/background", "", 8.0, "", 0.01, 16.0};
+    Parameter red{"/red", "", 0.0, "", 0.0, 1.0};
+    Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
+    Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
+    Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
+    Parameter localRadius{"/localRadius", "", 0.1, "", 0.01, 0.9};
+    Parameter pointSize{"/pointSize", "", 0.51, "", 0.0, 3.0};
+    Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
+    Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
+    Parameter tailLength{"/tailLength", "", 0.25, "", 0.0, 1.0};
+    Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
+    Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
+    Parameter value{"/value", "", 1.0, "", 0.0, 1.0};
 
-  ControlGUI gui;
+    ControlGUI gui;
 
-  ShaderProgram shader;
-  ShaderProgram speckShader;
+    ShaderProgram shader;
+    ShaderProgram speckShader;
 
-  Mesh mesh;
-  Mesh backgroundSphere;
-  Mesh specks;
+    Mesh mesh;
+    Mesh backgroundSphere;
+    Mesh specks;
 
-  vector<Flock> flock;
-  FlowField field = FlowField(8);
+    vector<Flock> flock;
+    FlowField field = FlowField(8);
 
-  Heat heat;
-  Species species[58];
-  Clock c;
-  float currentTemp = -1;
+    Heat heat;
+    Species species[58];
+    Clock c;
+    float currentTemp = -1;
 
-  std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
-      cuttleboneDomain;
+    std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>> cuttleboneDomain;
 
-  void onCreate() override {
-    cuttleboneDomain =
-        CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
-    if (!cuttleboneDomain) {
-      std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
-      quit();
-    }
-
-    gui << background << red << globalScale << moveRate << turnRate
-        << localRadius << pointSize << homing << fieldStrength << thickness
-        << tailLength << saturation << value;
-    gui.init();
-
-    // DistributedApp provides a parameter server.
-    // This links the parameters between "simulator" and "renderers"
-    // automatically
-    parameterServer() << background << red << globalScale << moveRate
-                      << turnRate << localRadius << pointSize << homing
-                      << fieldStrength << thickness << tailLength << saturation
-                      << value;
-
-    navControl().useMouse(false);
-
-    // Loading CSV data, initializing structs
+    // Setup OSC
     //
-    // initializeData(heat, species);
-    CSVReader temperatureData;
-    temperatureData.addType(CSVReader::REAL); // Date
-    temperatureData.addType(CSVReader::REAL); // Temperature (c)
-    temperatureData.readFile("../data/_TEMP.csv");
+    short port = 12345;
+    const char *host = "127.0.0.1";
+    osc::Send osc;
 
-    std::vector<Temperatures> tRows =
-        temperatureData.copyToStruct<Temperatures>();
-    for (auto t : tRows) {
-      heat.data.push_back(t);
-    };
-
-    tRows.clear();
-
-    CSVReader bioDiversityData;
-    bioDiversityData.addType(CSVReader::REAL); // Name
-    bioDiversityData.addType(CSVReader::REAL); // Site
-    bioDiversityData.addType(CSVReader::REAL); // Date
-    bioDiversityData.addType(CSVReader::REAL); // Count
-    bioDiversityData.addType(CSVReader::REAL); // Transect
-    bioDiversityData.addType(CSVReader::REAL); // quad
-    bioDiversityData.addType(CSVReader::REAL); // Taxonomy | Phylum
-    bioDiversityData.addType(CSVReader::REAL); // Mobility
-    bioDiversityData.addType(CSVReader::REAL); // Growth_Morph
-    bioDiversityData.readFile("../data/_BIODIVERSE.csv");
-
-    std::vector<Biodiversities> bRows =
-        bioDiversityData.copyToStruct<Biodiversities>();
-    for (auto b : bRows) {
-      species[int(b.comName)].site[int(b.site)].data.push_back(b);
-    };
-
-    bRows.clear();
-
-    heat.init();
-    for (int i = 0; i < NUM_SPECIES; i++) {
-      for (int j = 0; j < NUM_SITES; j++) {
-        species[i].site[j].init();
-        species[i].site[j].update(c.now());
-      }
-    }
-
-    // updateData(Clock c, Species *species[])
-    currentTemp = heat.update(c.now());
-    c.update();
-
-    // compile shaders
-    shader.compile(slurp("../paint-vertex.glsl"),
-                   slurp("../paint-fragment.glsl"),
-                   slurp("../paint-geometry.glsl"));
-
-    speckShader.compile(slurp("../speck-vertex.glsl"),
-                        slurp("../speck-fragment.glsl"),
-                        slurp("../speck-geometry.glsl"));
-
-    // Background sphere
-    addSphereWithTexcoords(backgroundSphere, BOUNDARY_RADIUS);
-    const size_t verts = backgroundSphere.vertices().size();
-    auto &col = backgroundSphere.colors();
-    col.resize(verts);
-    for (size_t i = 0; i < verts; i += 1) {
-      col[i].set(0.0f, 0.0f,
-                 (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                     (BOUNDARY_RADIUS * background));
-      // std::cout << (backgroundSphere.vertices()[i].y + r) / (r * 2) <<
-      // std::endl;
-    }
-
-    // Specks
-    specks.primitive(Mesh::POINTS);
-    for (int i = 0; i < SPECK_COUNT; i++) {
-      specks.vertex(Vec3f(rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
-                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
-                          rnd::uniformS() * BOUNDARY_RADIUS * 0.7));
-      specks.color(0.7, 1.0, 0.7, 0.4);
-    }
-
-    mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
-
-    int n = 0;
-    for (int i = 0; i < FLOCK_COUNT; i++) {
-      int sp = i / NUM_SITES;
-      int si = i % NUM_SITES;
-
-      Vec3f &h(species[sp].site[si].origin);
-      h.y -= 3;
-      // float t = i / float(FLOCK_COUNT) * M_PI * 2;
-      // Vec3f h = Vec3f(0.5, 0.5, 0.5) + polToCar(2, t)
-
-      Flock f = Flock(h, FLOCK_SIZE, i / NUM_SITES);
-
-      for (Agent a : f.agent) {
-        space.move(n,
-                   a.pos() * space.dim()); // crashes when using "n"?
-
-        for (int j = 0; j < TAIL_LENGTH; j++) {
-          mesh.vertex(a.pos());
-          mesh.normal(a.uf());
-          if (j == 0) {
-            // texcoord y1 used to indicate head of a strip
-            mesh.texCoord(0.0f, 1.0f);
-            mesh.color(1.0f, 1.0f, 1.0f);
-          } else if (j == TAIL_LENGTH - 1) {
-            // texcoord y2 used to indicate tail of a strip
-            mesh.texCoord(0.0f, 2.0f);
-            mesh.color(HSV(f.hue, 1.0f, 1.0f));
-          } else {
-            // texcoord y0 used to indicate body of a strip
-            mesh.texCoord(0.0f, 0.0f);
-            mesh.color(HSV(f.hue, 1.0f, 1.0f));
-          }
+    void onCreate() override {
+        cuttleboneDomain = CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
+        if (!cuttleboneDomain) {
+            std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
+            quit();
         }
 
-        n++;
-      }
-      flock.push_back(f);
-    }
+        gui << background << red << globalScale << moveRate << turnRate << localRadius << pointSize
+            << homing << fieldStrength << thickness << tailLength << saturation << value;
+        gui.init();
 
-    nav().pos(0.0, 0.0, 0.0);
-  }
+        // DistributedApp provides a parameter server.
+        // This links the parameters between "simulator" and "renderers"
+        // automatically
+        parameterServer() << background << red << globalScale << moveRate << turnRate << localRadius
+                          << pointSize << homing << fieldStrength << thickness << tailLength
+                          << saturation << value;
 
-  float t = 0;
-  int frameCount = 0;
-  void onAnimate(double dt) override {
-    if (cuttleboneDomain->isSender()) {
-      t += dt;
-      frameCount++;
-      if (t > 1) {
-        t -= 1;
-        cout << frameCount << "fps " << endl;
-        frameCount = 0;
-      }
+        navControl().useMouse(false);
 
-      // Setup OSC
-      //
-      short port = 12345;
-      const char *host = "127.0.0.1";
-      osc::Send osc;
-      osc.open(port, host);
+        // Loading CSV data, initializing structs
+        //
+        CSVReader temperatureData;
+        temperatureData.addType(CSVReader::REAL);  // Date
+        temperatureData.addType(CSVReader::REAL);  // Temperature (c)
+        temperatureData.readFile("../data/_TEMP.csv");
 
-      float currentTime = c.now();
-      currentTemp = heat.update(currentTime);
-      float white = scale(currentTemp, heat.min, heat.max, 0.0f, 1.0f, 1.0f);
+        std::vector<Temperatures> tRows = temperatureData.copyToStruct<Temperatures>();
+        for (auto t : tRows) {
+            heat.data.push_back(t);
+        };
 
-      for (size_t i = 0; i < backgroundSphere.vertices().size(); i++) {
-        backgroundSphere.colors()[i].set(
-            white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                (BOUNDARY_RADIUS * background),
-            white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                (BOUNDARY_RADIUS * background),
-            (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                (BOUNDARY_RADIUS * background));
-      }
+        tRows.clear();
 
-      int sharedIndex = 0;
-      int totalAgents = 0;
-      for (int sp = 0; sp < NUM_SPECIES; sp++) {
-        for (int si = 0; si < NUM_SITES; si++) {
-          species[sp].site[si].update(currentTime);
-          int n = sp * NUM_SITES + si;
+        CSVReader bioDiversityData;
+        bioDiversityData.addType(CSVReader::REAL);  // Name
+        bioDiversityData.addType(CSVReader::REAL);  // Site
+        bioDiversityData.addType(CSVReader::REAL);  // Date
+        bioDiversityData.addType(CSVReader::REAL);  // Count
+        bioDiversityData.addType(CSVReader::REAL);  // Transect
+        bioDiversityData.addType(CSVReader::REAL);  // quad
+        bioDiversityData.addType(CSVReader::REAL);  // Taxonomy | Phylum
+        bioDiversityData.addType(CSVReader::REAL);  // Mobility
+        bioDiversityData.addType(CSVReader::REAL);  // Growth_Morph
+        bioDiversityData.readFile("../data/_BIODIVERSE.csv");
 
-          // Rotate force field vectors
-          //
-          // ???
+        std::vector<Biodiversities> bRows = bioDiversityData.copyToStruct<Biodiversities>();
+        for (auto b : bRows) {
+            species[int(b.comName)].site[int(b.site)].data.push_back(b);
+        };
 
-          Flock &f(flock[n]);
-          f.population = species[sp].site[si].currentCount;
-          totalAgents += f.population;
-          f.home = species[sp].site[si].origin;
-          f.home.y -= 3;
-          // Reset agent quantities before calculating frame
-          //
-          for (int i = 0; i < f.population; i++) {
-            f.agent[i].center = f.agent[i].pos();
-            f.agent[i].heading = f.agent[i].uf();
-            f.agent[i].flockCount = 1;
-            f.agent[i].acceleration.zero();
-          }
-          // Search for neighbors
-          //
+        bRows.clear();
 
-          // float sum = 0;
-          // for (int i = 0; i < f.population; i++) {
-          //     // HashSpace::Query query(k);
-          //     int results = query(space, f.agent[i].pos() * space.dim(),
-          //                         space.maxRadius() * localRadius);
-          //     for (int j = 0; j < results; j++) {
-          //         int id = query[j]->id;
-          //         f.agent[i].heading += f.agent[id].uf();
-          //         f.agent[i].center += f.agent[id].pos();
-          //         f.agent[i].flockCount++;
-          //     }
-          //     sum += f.agent[i].flockCount;
-          // }
-
-          // if (frameCount == 0) //
-          //   cout << sum / f.population << "nn" << endl;
-
-          // Calculate agent behaviors
-          //
-          for (int i = 0; i < f.population; i++) {
-            //   if (f.agent[i].isActive() == true) {
-            //     if (f.agent[i].flockCount < 1) {
-            //       printf("shit is f-cked\n");
-            //       fflush(stdout);
-            //       exit(1);
-
-            // if (agent[i].flockCount == 1) {
-            //   agent[i].faceToward(Vec3f(0, 0, 0), 0.003 *
-            //   turnRate); continue;
-            // }
-
-            // make averages
-            // agent[i].center /= agent[i].flockCount;
-            // agent[i].heading /= agent[i].flockCount;
-
-            // float distance = (agent[i].pos() -
-            // agent[i].center).mag();
-
-            // alignment: steer towards the average heading of local
-            // flockmates
-            //
-            // agent[i].faceToward(agent[i].pos() +
-            // agent[i].heading,
-            //                     0.003 * turnRate);
-            // agent[i].faceToward(agent[i].center, 0.003 *
-            // turnRate); agent[i].faceToward(agent[i].pos() -
-            // agent[i].center, 0.003 * turnRate);
-
-            // steer towards the home location
-            //
-            f.agent[i].faceToward(f.home, homing * turnRate);
-          }
-
-          // change steering based on force field?
-
-          // Apply forces
-          //
-          for (int i = 0; i < f.population; i++) {
-            // agency
-            //
-            f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
-
-            // flow field
-            //
-            if (f.agent[i].withinBounds(field)) {
-              f.agent[i].acceleration +=
-                  field.grid.at(f.agent[i].fieldIndex(field)) *
-                  ((float)fieldStrength / 1000);
+        heat.init();
+        for (int i = 0; i < NUM_SPECIES; i++) {
+            for (int j = 0; j < NUM_SITES; j++) {
+                species[i].site[j].init();
+                species[i].site[j].update(c.now());
             }
-
-            // drag
-            //
-            f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
-          }
-
-          // Integration
-          //
-          for (int i = 0; i < f.population; i++) {
-            // "backward" Euler integration
-            //
-            f.agent[i].velocity += f.agent[i].acceleration;
-            f.agent[i].pos() += f.agent[i].velocity;
-          }
-
-          // Send positions over OSC
-          //
-          for (int i = 0; i < f.population; i++) {
-            Vec3d &pos(f.agent[i].pos());
-            osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
-          }
-
-          // Copy all the agents into shared state;
-          //
-          for (unsigned i = 0; i < FLOCK_SIZE; i++) {
-            state().agent[sharedIndex].from(f.agent[i]);
-            sharedIndex++;
-          }
         }
-      }
-      c.update();
-      state().cameraPose.set(nav());
-      state().background = background;
-      state().thickness = thickness.get();
-    } else {
-      // use the camera position from the simulator
-      //
-      nav().set(state().cameraPose);
+
+        currentTemp = heat.update(c.now());
+        c.update();
+
+        // compile shaders
+        shader.compile(slurp("../paint-vertex.glsl"), slurp("../paint-fragment.glsl"),
+                       slurp("../paint-geometry.glsl"));
+
+        speckShader.compile(slurp("../speck-vertex.glsl"), slurp("../speck-fragment.glsl"),
+                            slurp("../speck-geometry.glsl"));
+
+        // Background sphere
+        addSphereWithTexcoords(backgroundSphere, BOUNDARY_RADIUS);
+        const size_t verts = backgroundSphere.vertices().size();
+        auto &col = backgroundSphere.colors();
+        col.resize(verts);
+        for (size_t i = 0; i < verts; i += 1) {
+            col[i].set(0.0f, 0.0f,
+                       (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                           (BOUNDARY_RADIUS * background));
+        }
+
+        // Specks
+        specks.primitive(Mesh::POINTS);
+        for (int i = 0; i < SPECK_COUNT; i++) {
+            specks.vertex(Vec3f(rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                                rnd::uniformS() * BOUNDARY_RADIUS * 0.7,
+                                rnd::uniformS() * BOUNDARY_RADIUS * 0.7));
+            specks.color(0.7, 1.0, 0.7, 0.4);
+        }
+
+        // Make Agents/Flocks
+        mesh.primitive(Mesh::LINE_STRIP_ADJACENCY);
+        int n = 0;
+        for (int i = 0; i < FLOCK_COUNT; i++) {
+            int sp = i / NUM_SITES;
+            int si = i % NUM_SITES;
+
+            Vec3f &h(species[sp].site[si].origin);
+            h.y -= 3;
+
+            Flock f = Flock(h, FLOCK_SIZE, i / NUM_SITES);
+
+            for (Agent a : f.agent) {
+                for (int j = 0; j < TAIL_LENGTH; j++) {
+                    mesh.vertex(a.pos());
+                    mesh.normal(a.uf());
+                    if (j == 0) {
+                        // texcoord x is boolean "alive" state, y=1 used to indicate head of a strip
+                        mesh.texCoord(0.0f, 1.0f);
+                        mesh.color(1.0f, 1.0f, 1.0f);
+                    } else if (j == TAIL_LENGTH - 1) {
+                        // texcoord y=2 used to indicate tail of a strip
+                        mesh.texCoord(0.0f, 2.0f);
+                        mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                    } else {
+                        // texcoord y=0 used to indicate body of a strip
+                        mesh.texCoord(0.0f, 0.0f);
+                        mesh.color(HSV(f.hue, 1.0f, 1.0f));
+                    }
+                }
+
+                n++;
+            }
+            flock.push_back(f);
+        }
+
+        nav().pos(0.0, 0.0, 0.0);
+        osc.open(port, host);
     }
 
-    // visualize the agents
-    //
-    vector<Vec3f> &v(mesh.vertices());
-    vector<Vec2f> &t(mesh.texCoord2s());
-    vector<Vec3f> &n(mesh.normals());
-    vector<Color> &c(mesh.colors());
-
-    // for all agents in all flocks
-    //
-    for (int flockIndex = 0; flockIndex < FLOCK_COUNT; flockIndex++) {
-      Flock &f(flock[flockIndex]);
-      int flockStartIndex = flockIndex * FLOCK_SIZE;
-      for (int agentIndex = flockStartIndex;
-           agentIndex < flockStartIndex + FLOCK_SIZE; agentIndex++) {
-        int headVertex = agentIndex * TAIL_LENGTH;
-
-        if (agentIndex - flockStartIndex < flock[flockIndex].population) {
-          // for body of each agent, counting down from its tail
-          //
-          for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
-               segmentVertex >= headVertex; segmentVertex--) {
-            t[segmentVertex].x = 1.0f;
-
-            if (t[segmentVertex].y != 1) {
-              v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
-              c[segmentVertex] = HSV(f.hue, saturation, value);
+    float t = 0;
+    int frameCount = 0;
+    void onAnimate(double dt) override {
+        if (cuttleboneDomain->isSender()) {
+            // print frame rate
+            t += dt;
+            frameCount++;
+            if (t > 1) {
+                t -= 1;
+                cout << frameCount << "fps " << endl;
+                frameCount = 0;
             }
-            if (t[segmentVertex].y == 1) {
-              v[segmentVertex].set(state().agent[agentIndex].position);
+
+            // Rotate force field vectors
+            //
+            // ???
+
+            float currentTime = c.now();
+            currentTemp = heat.update(currentTime);
+            float white = scale(currentTemp, heat.min, heat.max, 0.0f, 1.0f, 1.0f);
+
+            // set background color according to temperature
+            for (size_t i = 0; i < backgroundSphere.vertices().size(); i++) {
+                backgroundSphere.colors()[i].set(
+                    white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                        (BOUNDARY_RADIUS * background),
+                    white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                        (BOUNDARY_RADIUS * background),
+                    (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                        (BOUNDARY_RADIUS * background));
             }
-          }
-          // v[i] = state().agent[i].position;
-          n[agentIndex * TAIL_LENGTH] =
-              -state().agent[agentIndex].orientation.toVectorZ();
-          // const Vec3d &up(state().agent[i].orientation.toVectorY());
-          // c[i * TAIL_LENGTH].set(0.0f, 1.0f, 0.0f);
+
+            int sharedIndex = 0;
+            int totalAgents = 0;
+            for (int sp = 0; sp < NUM_SPECIES; sp++) {
+                for (int si = 0; si < NUM_SITES; si++) {
+                    species[sp].site[si].update(currentTime);
+                    int n = sp * NUM_SITES + si;
+
+                    // update flock population and origin position
+                    Flock &f(flock[n]);
+                    f.population = species[sp].site[si].currentCount;
+                    totalAgents += f.population;
+                    f.home = species[sp].site[si].origin;
+                    f.home.y -= 3;
+
+                    // Reset agent quantities before calculating frame
+                    //
+                    for (int i = 0; i < f.population; i++) {
+                        f.agent[i].acceleration.zero();
+                    }
+
+                    // Apply forces to each agent
+                    for (int i = 0; i < f.population; i++) {
+                        // turn a bit toward home
+                        f.agent[i].faceToward(f.home, homing * turnRate);
+
+                        // move ahead
+                        f.agent[i].acceleration += f.agent[i].uf() * moveRate * 0.001;
+
+                        // flow field effect on agent
+                        //
+                        if (withinBounds(field, f.agent[i])) {
+                            f.agent[i].acceleration +=
+                                field.grid.at(fieldIndex(field, f.agent[i])) *
+                                ((float)fieldStrength / 1000);
+                        }
+
+                        // drag
+                        //
+                        f.agent[i].acceleration += -f.agent[i].velocity * 0.01;
+                    }
+
+                    // Integration
+                    //
+                    for (int i = 0; i < f.population; i++) {
+                        // "backward" Euler integration
+                        //
+                        f.agent[i].velocity += f.agent[i].acceleration;
+                        f.agent[i].pos() += f.agent[i].velocity;
+                    }
+
+                    // Send positions over OSC
+                    //
+                    for (int i = 0; i < f.population; i++) {
+                        Vec3d &pos(f.agent[i].pos());
+                        osc.send("/pos", n, i, (float)pos.x, (float)pos.y, (float)pos.z);
+                    }
+
+                    // Copy all the agents into shared state;
+                    //
+                    for (unsigned i = 0; i < FLOCK_SIZE; i++) {
+                        state().agent[sharedIndex].from(f.agent[i]);
+                        sharedIndex++;
+                    }
+                }
+            }
+            c.update();
+            state().cameraPose.set(nav());
+            state().background = background;
+            state().thickness = thickness.get();
         } else {
-          for (int i = headVertex; i < headVertex + TAIL_LENGTH; i++) {
-            t[i].x = 0.0f;
-          }
+            // use the camera position from the simulator
+            //
+            nav().set(state().cameraPose);
         }
-      }
+
+        // visualize the agents
+        //
+        vector<Vec3f> &v(mesh.vertices());
+        vector<Vec2f> &t(mesh.texCoord2s());
+        vector<Vec3f> &n(mesh.normals());
+        vector<Color> &c(mesh.colors());
+
+        // for all agents in all flocks
+        //
+        for (int iflock = 0; iflock < FLOCK_COUNT; iflock++) {  // for each flock
+            Flock &f(flock[iflock]);
+            int flockStartIndex = iflock * FLOCK_SIZE;  // index of first agent in flock
+            for (int iagent = flockStartIndex; iagent < flockStartIndex + FLOCK_SIZE;
+                 iagent++) {                            // for each agent
+                int headVertex = iagent * TAIL_LENGTH;  // head vertex of agent
+
+                if (iagent - flockStartIndex < flock[iflock].population) {  // if agent is alive
+                    // for body of each agent, counting down from its tail
+                    //
+                    for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
+                         segmentVertex >= headVertex; segmentVertex--) {  // for each vertex
+                        t[segmentVertex].x = 1.0f;
+
+                        if (t[segmentVertex].y != 1) {  // if not a head segment, follow head
+                            v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
+                            c[segmentVertex] = HSV(f.hue, saturation, value);
+                        }
+                        if (t[segmentVertex].y == 1) {  // if head, lead the way
+                            v[segmentVertex].set(state().agent[iagent].position);
+                        }
+                    }
+                    n[iagent * TAIL_LENGTH] = -state().agent[iagent].orientation.toVectorZ();
+                } else {  // if agent is dead
+                    for (int i = headVertex; i < headVertex + TAIL_LENGTH; i++) {
+                        t[i].x = 0.0f;
+                    }
+                }
+            }
+        }
+    };
+
+    void onDraw(Graphics &g) override {
+        float f = state().background;
+        g.clear(f, f, f);
+        gl::depthTesting(true);
+        gl::blending(true);
+        gl::blendTrans();
+        g.lighting(true);
+        g.scale(globalScale);
+
+        g.shader(shader);
+        g.shader().uniform("size", thickness);
+        g.draw(mesh);
+
+        g.meshColor();
+        g.draw(backgroundSphere);
+
+        g.shader(speckShader);
+        g.shader().uniform("pointSize", pointSize / 100);
+        g.draw(specks);
+
+        if (cuttleboneDomain->isSender()) {
+            gui.draw(g);
+        }
     }
-  };
-
-  void onDraw(Graphics &g) override {
-    float f = state().background;
-    g.clear(f, f, f);
-    gl::depthTesting(true);
-    gl::blending(true);
-    gl::blendTrans();
-    g.lighting(true);
-    g.scale(globalScale);
-
-    g.shader(shader);
-    g.shader().uniform("size", thickness);
-    g.draw(mesh);
-
-    g.meshColor();
-    g.draw(backgroundSphere);
-
-    g.shader(speckShader);
-    g.shader().uniform("pointSize", pointSize / 100);
-    g.draw(specks);
-
-    if (cuttleboneDomain->isSender()) {
-      gui.draw(g);
-    }
-  }
 };
 
 int main() { AlloApp().start(); }
 
+// useful functions
+//
 string slurp(string fileName) {
-  fstream file(fileName);
-  string returnValue = "";
-  while (file.good()) {
-    string line;
-    getline(file, line);
-    returnValue += line + "\n";
-  }
-  return returnValue;
+    fstream file(fileName);
+    string returnValue = "";
+    while (file.good()) {
+        string line;
+        getline(file, line);
+        returnValue += line + "\n";
+    }
+    return returnValue;
 }
 
-float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
-            float curve) {
-  float normValue = (value - inLow) / (inHigh - inLow);
-  if (curve == 1) {
-    return normValue * (outHigh - outLow) + outLow;
-  } else {
-    return (pow(normValue, curve) * (outHigh - outLow)) + outLow;
-  }
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh, float curve) {
+    float normValue = (value - inLow) / (inHigh - inLow);
+    if (curve == 1) {
+        return normValue * (outHigh - outLow) + outLow;
+    } else {
+        return (pow(normValue, curve) * (outHigh - outLow)) + outLow;
+    }
 }
 
 Vec3f polToCar(float r, float t) {
-  float x = r * cos(t);
-  float y = r * sin(t);
-  return Vec3f(x, 0, y);
+    float x = r * cos(t);
+    float y = r * sin(t);
+    return Vec3f(x, 0, y);
 }
-
-// void initializeData(Heat &heat, Species *species) {
-//   CSVReader temperatureData;
-//   temperatureData.addType(CSVReader::REAL); // Date
-//   temperatureData.addType(CSVReader::REAL); // Temperature (c)
-//   temperatureData.readFile("../data/_TEMP.csv");
-
-//   std::vector<Temperatures> tRows =
-//       temperatureData.copyToStruct<Temperatures>();
-//   for (auto t : tRows) {
-//     heat.data.push_back(t);
-//   };
-
-//   CSVReader bioDiversityData;
-//   bioDiversityData.addType(CSVReader::REAL); // Name
-//   bioDiversityData.addType(CSVReader::REAL); // Site
-//   bioDiversityData.addType(CSVReader::REAL); // Date
-//   bioDiversityData.addType(CSVReader::REAL); // Count
-//   bioDiversityData.addType(CSVReader::REAL); // Transect
-//   bioDiversityData.addType(CSVReader::REAL); // quad
-//   bioDiversityData.addType(CSVReader::REAL); // Taxonomy | Phylum
-//   bioDiversityData.addType(CSVReader::REAL); // Mobility
-//   bioDiversityData.addType(CSVReader::REAL); // Growth_Morph
-//   bioDiversityData.readFile("../data/_BIODIVERSE.csv");
-
-//   std::vector<Biodiversities> bRows =
-//       bioDiversityData.copyToStruct<Biodiversities>();
-//   for (auto b : bRows) {
-//     species[int(b.comName)].site[int(b.site)].data.push_back(b);
-//   };
-
-//   heat.init();
-//   for (int i = 0; i < NUM_SPECIES; i++) {
-//     for (int j = 0; j < NUM_SITES; j++) {
-//       species[i].site[j].init();
-//     }
-//   }
-// }
-
-// void updateData(Clock c, Species *species[]) {
-//   for (int i = 0; i < NUM_SPECIES; i++) {
-//     for (int j = 0; j < NUM_SITES; j++) {
-//       species[i]->site[j].update(c.now());
-//     }
-//   }
-//   c.update();
-// }
