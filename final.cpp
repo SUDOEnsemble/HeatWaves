@@ -121,8 +121,7 @@ struct DrawableAgent {
 
 struct SharedState {
   Pose cameraPose;
-  float background;
-  float thickness;
+  float background, thickness, globalScale;
   DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
   Vec3f speckPos[SPECK_COUNT];
   Vec3f kelpVerts[FLOCK_SIZE * NUM_SITES * TAIL_LENGTH * 2];
@@ -150,8 +149,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Mesh mesh;
   Mesh backgroundSphere;
   Mesh specks;
+
   Vec3f speckVelocities[SPECK_COUNT];
   Vec3f kelpVelocities[FLOCK_SIZE * NUM_SITES * TAIL_LENGTH * 2];
+
+  vector<Vec3f> sphereDefaultVerts;
 
   Light light;
 
@@ -254,10 +256,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     const size_t verts = backgroundSphere.vertices().size();
     auto &col = backgroundSphere.colors();
     col.resize(verts);
-    for (size_t i = 0; i < verts; i += 1) {
+    for (size_t i = 0; i < verts; i++) {
       col[i].set(0.0f, 0.0f,
                  (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
                      (BOUNDARY_RADIUS * background));
+      sphereDefaultVerts.push_back(backgroundSphere.vertices()[i]);
     }
 
     // Specks
@@ -371,6 +374,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           totalAgents += f.population;
           f.home = species[sp].site[si].origin;
           f.home.y -= 3;
+          f.home *= globalScale;
 
           if (sp != 16 && sp != 56) { // if species is not kelp
 
@@ -466,20 +470,14 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       // cout << 25 % 25 << endl;
       c.update();
       state().cameraPose.set(nav());
-      state().background = background;
+      state().background = background.get();
       state().thickness = thickness.get();
+      state().globalScale = globalScale.get();
     } else {
       // use the camera position from the simulator
       //
       nav().set(state().cameraPose);
     }
-
-    // visualize the agents
-    //
-    vector<Vec3f> &v(mesh.vertices());
-    vector<Vec2f> &t(mesh.texCoord2s());
-    vector<Vec3f> &n(mesh.normals());
-    vector<Color> &c(mesh.colors());
 
     // set background color according to temperature
     float white = scale(currentTemp, heat.min, heat.max, 0.0f, 1.0f, 1.0f);
@@ -493,33 +491,44 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
               (BOUNDARY_RADIUS * state().background));
     }
 
+    // visualize the agents
+    //
+    vector<Vec3f> &v(mesh.vertices());
+    vector<Vec2f> &t(mesh.texCoord2s());
+    vector<Vec3f> &n(mesh.normals());
+    vector<Color> &c(mesh.colors());
+
+    // resize the sphere
+    for (int i = 0; i < backgroundSphere.vertices().size(); i++) {
+      backgroundSphere.vertices()[i] =
+          sphereDefaultVerts[i] * state().globalScale;
+    }
+
     // set speck position
     for (int i = 0; i < SPECK_COUNT; i++) {
-      specks.vertices()[i].set(state().speckPos[i]);
+      specks.vertices()[i].set(state().speckPos[i] * state().globalScale);
     }
 
     // set kelp position
     int segmentVertex = 16 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
     for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
-      v[segmentVertex].set(state().kelpVerts[i]);
+      v[segmentVertex].set(state().kelpVerts[i] * state().globalScale);
       segmentVertex++;
       if (segmentVertex == (17 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES))
         segmentVertex = 56 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
     }
 
-    // for all agents in all flocks
-    //
-    for (int iflock = 0; iflock < FLOCK_COUNT; iflock++) { // for each flock
-      int sp = iflock / NUM_SITES;
-      Flock &f(flock[iflock]);
+    for (int iFlock = 0; iFlock < FLOCK_COUNT; iFlock++) { // for each flock
+      int sp = iFlock / NUM_SITES;
+      Flock &f(flock[iFlock]);
       int flockStartIndex =
-          iflock * FLOCK_SIZE; // index of first agent in flock
-      for (int iagent = flockStartIndex; iagent < flockStartIndex + FLOCK_SIZE;
-           iagent++) {                         // for each agent
-        int headVertex = iagent * TAIL_LENGTH; // head vertex of agent
+          iFlock * FLOCK_SIZE; // index of first agent in flock
+      for (int iAgent = flockStartIndex; iAgent < flockStartIndex + FLOCK_SIZE;
+           iAgent++) {                         // for each agent
+        int headVertex = iAgent * TAIL_LENGTH; // head vertex of agent
 
-        if (iagent - flockStartIndex <
-            flock[iflock].population) { // if agent is alive
+        if (iAgent - flockStartIndex <
+            flock[iFlock].population) { // if agent is alive
           // for body of each agent, counting down from its tail
           //
           for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
@@ -529,18 +538,20 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             if (sp != 16 && sp != 56) {
               if (t[segmentVertex].y !=
                   1) { // if not a head segment, follow head
-                v[segmentVertex].lerp(v[segmentVertex - 1], tailLength);
+                v[segmentVertex].lerp(v[segmentVertex - 1], tailLength) *
+                    state().globalScale;
                 c[segmentVertex] = HSV(f.hue, saturation, value);
                 c[segmentVertex].a = 0.6;
               }
 
               if (t[segmentVertex].y == 1) { // if head, lead the way
-                v[segmentVertex].set(state().agent[iagent].position);
+                v[segmentVertex].set(state().agent[iAgent].position *
+                                     state().globalScale);
               }
             }
           }
-          n[iagent * TAIL_LENGTH] =
-              -state().agent[iagent].orientation.toVectorZ();
+          n[iAgent * TAIL_LENGTH] =
+              -state().agent[iAgent].orientation.toVectorZ();
         } else { // if agent is dead
           for (int i = headVertex; i < headVertex + TAIL_LENGTH; i++) {
             t[i].x = 0.0f;
@@ -551,13 +562,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   };
 
   void onDraw(Graphics &g) override {
-    g.clear(0);
+    g.clear(0, 0, 0.2);
     gl::depthTesting(true);
     gl::blending(true);
     gl::blendTrans();
     g.lighting(true);
     g.light(light);
-    g.scale(globalScale);
 
     g.shader(shader);
     g.shader().uniform("size", thickness);
