@@ -444,8 +444,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             // move specks
             for (int i = 0; i < SPECK_COUNT; i++) {
                 // acceleration due to flowfield
-                if (withinBounds(field, specks.vertices()[i])) {
-                    speckVelocities[i] += field.grid.at(fieldIndex(field, specks.vertices()[i])) *
+                if (withinBounds(field, state().speckPos[i])) {
+                    speckVelocities[i] += field.grid.at(fieldIndex(field, state().speckPos[i])) *
                                           ((float)fieldStrength / 1000);
                 } else {
                     speckVelocities[i] += -state().speckPos[i].normalized() * 0.1;
@@ -459,7 +459,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
                 if (i % TAIL_LENGTH != 0) {
                     // acceleration due to flowfield
-                    if (withinBounds(field, specks.vertices()[i])) {
+                    if (withinBounds(field, state().kelpVerts[i])) {
                         kelpVelocities[i] +=
                             field.grid.at(fieldIndex(field, state().kelpVerts[i])) *
                             ((float)fieldStrength / 10000);
