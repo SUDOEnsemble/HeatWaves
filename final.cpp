@@ -559,6 +559,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         int segmentVertex = 16 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
         for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
             v[segmentVertex].set(state().kelpVerts[i] * state().globalScale);
+            c[segmentVertex] = HSV(0.3, 1 - state().temperature, 0.5);
             segmentVertex++;
             if (segmentVertex == (17 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES))
                 segmentVertex = 56 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
