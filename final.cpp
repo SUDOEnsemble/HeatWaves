@@ -148,6 +148,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
     Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
     Parameter value{"/value", "", 1.0, "", 0.0, 1.0};
+    ParameterString printTemperatureMinMax{"Temperature min-max"};
+    ParameterString printTemperature{"Temperature"};
 
     ControlGUI gui;
 
@@ -190,7 +192,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         }
 
         gui << background /* << red */ << globalScale << moveRate << turnRate << speckSize << homing
-            << fieldStrength << fieldRotation << thickness << tailLerpRate << saturation << value;
+            << fieldStrength << fieldRotation << thickness << tailLerpRate << saturation << value
+            << printTemperatureMinMax << printTemperature;
         gui.init();
 
         // DistributedApp provides a parameter server.
@@ -244,6 +247,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
         currentTemp = heat.update(c.now());
         c.update();
+
+        printTemperatureMinMax.set(toString(heat.min) + " - " + toString(heat.max));
 
         // Compile shaders
         agentShader.compile(slurp("../paint-vertex.glsl"), slurp("../paint-fragment.glsl"),
@@ -477,6 +482,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
             state().background = background.get();
             state().thickness = thickness.get();
             state().globalScale = globalScale.get();
+            printTemperature.set(toString(currentTemp));
         } else {
             // Use the camera position from the simulator
             nav().set(state().cameraPose);
