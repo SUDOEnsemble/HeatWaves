@@ -536,7 +536,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                                     0.6 -
                                     ((state().agent[iAgent].position - state().cameraPose.pos())
                                          .mag() /
-                                     BOUNDARY_RADIUS);
+                                     BOUNDARY_RADIUS) *
+                                        0.6;
                             }
 
                             if (t[segmentVertex].y == 1) {  // if head, lead the way
@@ -560,6 +561,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         for (int i = 0; i < FLOCK_SIZE * TAIL_LENGTH * NUM_SITES * 2; i++) {
             v[segmentVertex].set(state().kelpVerts[i] * state().globalScale);
             c[segmentVertex] = HSV(0.3, 1 - state().temperature, 0.5);
+            c[segmentVertex].a =
+                0.4 -
+                ((state().kelpVerts[i] - state().cameraPose.pos()).mag() / BOUNDARY_RADIUS) * 0.4;
             segmentVertex++;
             if (segmentVertex == (17 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES))
                 segmentVertex = 56 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
