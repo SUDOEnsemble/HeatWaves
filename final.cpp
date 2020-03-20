@@ -6,6 +6,8 @@
 // TO DO:
 // Tie temp to color in a cool way
 // Only send OSC messages for active agents, notify when active state changes
+// add random variation in agent and kelp colors
+// make agents colors less clown barfy and make them gradient from head to tail
 
 #define BOUNDARY_RADIUS (20)
 #define NUM_SPECIES (58)
@@ -527,7 +529,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                                         state().globalScale;
                                 }
                                 c[segmentVertex] = HSV(f.hue, saturation, value);
-                                c[segmentVertex].a = 0.6;
+                                c[segmentVertex].a =
+                                    0.6 -
+                                    ((state().agent[iAgent].position - state().cameraPose.pos())
+                                         .mag() /
+                                     BOUNDARY_RADIUS);
                             }
 
                             if (t[segmentVertex].y == 1) {  // if head, lead the way
