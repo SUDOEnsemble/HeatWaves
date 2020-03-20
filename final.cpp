@@ -131,6 +131,7 @@ struct SharedState {
     DrawableAgent agent[FLOCK_COUNT * FLOCK_SIZE];
     Vec3f speckPos[SPECK_COUNT];
     Vec3f kelpVerts[FLOCK_SIZE * NUM_SITES * TAIL_LENGTH * 2];
+    float temperature;
 };
 
 struct AlloApp : public DistributedAppWithState<SharedState> {
@@ -366,6 +367,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
             float currentTime = c.now();
             currentTemp = heat.update(currentTime);
+            // set temperature for use in color changing
+            state().temperature = (currentTemp - heat.min) / (heat.max - heat.min);
 
             int sharedIndex = 0;
             int totalAgents = 0;
@@ -480,13 +483,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         }
 
         // Set background color according to temperature
-        float white = scale(currentTemp, heat.min, heat.max, 0.0f, 1.0f, 1.0f);
+        float temp = state().temperature;
         for (size_t i = 0; i < backgroundSphere.vertices().size(); i++) {
             backgroundSphere.colors()[i].set(
-                white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                    (BOUNDARY_RADIUS * state().background),
-                white * (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                    (BOUNDARY_RADIUS * state().background),
+                ((-backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) * temp /
+                 (BOUNDARY_RADIUS * state().background)) *
+                    0.5,
+                0,
                 (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
                     (BOUNDARY_RADIUS * state().background));
         }
@@ -528,7 +531,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
                                     v[segmentVertex].lerp(v[segmentVertex - 1], tailLerpRate) *
                                         state().globalScale;
                                 }
-                                c[segmentVertex] = HSV(f.hue, saturation, value);
+                                c[segmentVertex] = HSV(f.hue, 1 - state().temperature, value);
                                 c[segmentVertex].a =
                                     0.6 -
                                     ((state().agent[iAgent].position - state().cameraPose.pos())
