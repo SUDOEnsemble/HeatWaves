@@ -4,10 +4,16 @@
 // MAT-201B W20
 //
 // TO DO:
-// Tie temp to color in a cool way
-// Only send OSC messages for active agents, notify when active state changes
-// add random variation in agent and kelp colors
-// make agents colors less clown barfy and make them gradient from head to tail
+// - Tie temp to color in a cool way
+// - Only send OSC messages for active agents, notify when active state changes
+// - add random variation in agent and kelp colors
+// - make agents colors less clown barfy and make them gradient from head to tail
+// - make objects fade out and fade in when they die
+// - make the agent killing and rebirth FIFO, so the next agent that dies is the oldest one, because
+// right now, only the agents at the end of the array die and rebirth, while some stick around
+// forever.
+// - render far away objects differently because they appear pixelated
+// - MAKE SOUND
 
 #define BOUNDARY_RADIUS (20)
 #define NUM_SPECIES (58)
@@ -16,7 +22,8 @@
 #define FLOCK_SIZE (10)
 #define TAIL_LENGTH (25)
 #define KELP_LENGTH (1.0f)
-#define SPECK_COUNT (1000)
+#define SPECK_COUNT (5000)
+#define cuttleboneActive (1)
 
 #include "al/app/al_AppRecorder.hpp"
 #include "al/app/al_DistributedApp.hpp"
@@ -138,13 +145,13 @@ struct SharedState {
 struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter background{"/background", "", 4.0, "", 0.01, 16.0};
   //   Parameter red{"/red", "", 0.0, "", 0.0, 1.0};
-  Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
+  Parameter globalScale{"/globalScale", "", 2.0, "", 0.000001, 2.0};
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
-  Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
-  Parameter speckSize{"/speckSize", "", 0.51, "", 0.0, 5.0};
+  Parameter turnRate{"/turnRate", "", 0.15, "", 0.0, 2.0};
+  Parameter speckSize{"/speckSize", "", 0.8, "", 0.0, 5.0};
   Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
-  Parameter fieldRotation{"/fieldRotation", "", 0.01, "", 0.0, 1.0};
+  Parameter fieldRotation{"/fieldRotation", "", 0.3, "", 0.0, 1.0};
   Parameter tailLerpRate{"/tailLerpRate", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
   Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
@@ -185,15 +192,17 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   const char *host = "127.0.0.1";
   osc::Send osc;
 
+  // Recorder for rendering to a video
   AppRecorder rec;
 
   void onCreate() override {
-    cuttleboneDomain = CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
-    if (!cuttleboneDomain) {
-      std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
-      quit();
+    if (cuttleboneActive) {
+      cuttleboneDomain = CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
+      if (!cuttleboneDomain) {
+        std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
+        quit();
+      }
     }
-
     gui << background /* << red */ << globalScale << moveRate << turnRate << speckSize << homing
         << fieldStrength << fieldRotation << thickness << tailLerpRate << saturation << value
         << printTemperatureMinMax << printTemperature;
@@ -244,11 +253,11 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     for (int i = 0; i < NUM_SPECIES; i++) {
       for (int j = 0; j < NUM_SITES; j++) {
         species[i].site[j].init();
-        species[i].site[j].update(c.now() + 300);
+        species[i].site[j].update(c.now() + 250);
       }
     }
 
-    currentTemp = heat.update(c.now() + 300);
+    currentTemp = heat.update(c.now() + 250);
     c.update();
 
     printTemperatureMinMax.set(toString(heat.min) + " - " + toString(heat.max));
@@ -356,9 +365,18 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vectorVis.vertex(0, 0, 0);
     vectorVis.vertex(0, 0, 0);
 
+    // to record, uncomment these lines and set the lentgh of the recording
+    // (note that the app will run very slowly while recording)
+
     // rec.connectApp(this);
-    // rec.startRecordingOffline(15.0);
+    // rec.startRecordingOffline(300.0);
   }
+
+  // variables for camera movement
+  int cameraTime = 0;
+  float _lerpAmt = 1.0;
+  Vec3f startPos = Vec3f(0.0, 0.0, 0.0);
+  Vec3f destPos = Vec3f(0.0, 0.0, 0.0);
 
   float t = 0;
   int frameCount = 0;
@@ -373,10 +391,24 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         frameCount = 0;
       }
 
+      // Camera movement behavior
+      float lerpAmt = fmod((cameraTime / 300.0), 2.0);
+      float deltaLerpAmt = lerpAmt - _lerpAmt;
+      if (deltaLerpAmt < 0.0) {
+        startPos = destPos;
+        destPos = (rvS() * 5) + 5;
+      }
+      Vec3f loc = startPos.lerp(destPos, lerpAmt / 24);
+      nav().pos(loc);
+      nav().view(0, 0, 0);
+      nav().faceToward(Vec3f(0.0, 0.0, 0.0));
+      cameraTime++;
+      _lerpAmt = lerpAmt;
+
       // Rotate force field vectors
       field.rotate(fieldRotation);
 
-      float currentTime = c.now() + 300;
+      float currentTime = c.now() + 250;
       currentTemp = heat.update(currentTime);
       // set temperature for use in color changing
       state().temperature = (currentTemp - heat.min) / (heat.max - heat.min);
@@ -595,7 +627,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     g.draw(specks);
 
     if (cuttleboneDomain->isSender()) {
-      gui.draw(g);
+      // gui.draw(g);
     }
   }
 };
