@@ -4,10 +4,16 @@
 // MAT-201B W20
 //
 // TO DO:
-// Tie temp to color in a cool way
-// Only send OSC messages for active agents, notify when active state changes
-// add random variation in agent and kelp colors
-// make agents colors less clown barfy and make them gradient from head to tail
+// - Tie temp to color in a cool way
+// - Only send OSC messages for active agents, notify when active state changes
+// - add random variation in agent and kelp colors
+// - make agents colors less clown barfy and make them gradient from head to tail
+// - make objects fade out and fade in when they die
+// - make the agent killing and rebirth FIFO, so the next agent that dies is the oldest one, because
+// right now, only the agents at the end of the array die and rebirth, while some stick around
+// forever.
+// - render far away objects differently because they appear pixelated
+// - MAKE SOUND
 
 #define BOUNDARY_RADIUS (20)
 #define NUM_SPECIES (58)
@@ -16,8 +22,10 @@
 #define FLOCK_SIZE (10)
 #define TAIL_LENGTH (25)
 #define KELP_LENGTH (1.0f)
-#define SPECK_COUNT (1000)
+#define SPECK_COUNT (5000)
+#define cuttleboneActive (1)
 
+#include "al/app/al_AppRecorder.hpp"
 #include "al/app/al_DistributedApp.hpp"
 #include "al/math/al_Random.hpp"
 #include "al/spatial/al_HashSpace.hpp"
@@ -40,13 +48,12 @@ Vec3f rvS() { return Vec3f(rnd::uniformS(), rnd::uniformS(), rnd::uniformS()); }
 
 string slurp(string fileName);
 
-float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
-            float curve);
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh, float curve);
 
 Vec3f polToCar(float r, float t);
 
 struct FlowField {
-  int resolution; // number of divisions per axis
+  int resolution;  // number of divisions per axis
   vector<Vec3f> grid;
   vector<bool> perimeter;
 
@@ -62,8 +69,7 @@ struct FlowField {
   void rotate(float amount) {
     for (int i = 0; i < grid.size(); i++) {
       grid[i] += rvS() * amount;
-      if (grid[i].mag() > 1)
-        grid[i].normalize();
+      if (grid[i].mag() > 1) grid[i].normalize();
     }
   }
 };
@@ -92,8 +98,7 @@ int fieldIndex(FlowField &f, Vec3f p) {
 bool withinBounds(FlowField &f, Vec3f p) {
   int &res(f.resolution);
   Vec3i fA = fieldAddress(f, p);
-  return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) &&
-         (fA.z >= 0 && fA.z < res);
+  return (fA.x >= 0 && fA.x < res) && (fA.y >= 0 && fA.y < res) && (fA.z >= 0 && fA.z < res);
 }
 
 struct Flock {
@@ -140,13 +145,13 @@ struct SharedState {
 struct AlloApp : public DistributedAppWithState<SharedState> {
   Parameter background{"/background", "", 4.0, "", 0.01, 16.0};
   //   Parameter red{"/red", "", 0.0, "", 0.0, 1.0};
-  Parameter globalScale{"/globalScale", "", 1.0, "", 0.000001, 2.0};
+  Parameter globalScale{"/globalScale", "", 2.0, "", 0.000001, 2.0};
   Parameter moveRate{"/moveRate", "", 0.1, "", 0.0, 2.0};
-  Parameter turnRate{"/turnRate", "", 0.1, "", 0.0, 2.0};
-  Parameter speckSize{"/speckSize", "", 0.51, "", 0.0, 5.0};
+  Parameter turnRate{"/turnRate", "", 0.15, "", 0.0, 2.0};
+  Parameter speckSize{"/speckSize", "", 0.8, "", 0.0, 5.0};
   Parameter homing{"/homing", "", 0.3, "", 0.0, 2.0};
   Parameter fieldStrength{"/fieldStrength", "", 0.1, "", 0.0, 2.0};
-  Parameter fieldRotation{"/fieldRotation", "", 0.01, "", 0.0, 1.0};
+  Parameter fieldRotation{"/fieldRotation", "", 0.3, "", 0.0, 1.0};
   Parameter tailLerpRate{"/tailLerpRate", "", 0.25, "", 0.0, 1.0};
   Parameter thickness{"/thickness", "", 0.25, "", 0.0, 1.0};
   Parameter saturation{"/saturation", "", 1.0, "", 0.0, 1.0};
@@ -178,48 +183,47 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
   Clock c;
   float currentTemp = -1;
 
-  std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>>
-      cuttleboneDomain;
+  std::shared_ptr<CuttleboneStateSimulationDomain<SharedState>> cuttleboneDomain;
 
-  Mesh vectorVis; // mesh for drawing a line visualizing a vector
+  Mesh vectorVis;  // mesh for drawing a line visualizing a vector
 
   // Setup OSC
   short port = 12345;
   const char *host = "127.0.0.1";
   osc::Send osc;
 
-  void onCreate() override {
-    cuttleboneDomain =
-        CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
-    if (!cuttleboneDomain) {
-      std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
-      quit();
-    }
+  // Recorder for rendering to a video
+  AppRecorder rec;
 
-    gui << background /* << red */ << globalScale << moveRate << turnRate
-        << speckSize << homing << fieldStrength << fieldRotation << thickness
-        << tailLerpRate << saturation << value << printTemperatureMinMax
-        << printTemperature;
+  void onCreate() override {
+    if (cuttleboneActive) {
+      cuttleboneDomain = CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
+      if (!cuttleboneDomain) {
+        std::cerr << "ERROR: Could not start Cuttlebone. Quitting." << std::endl;
+        quit();
+      }
+    }
+    gui << background /* << red */ << globalScale << moveRate << turnRate << speckSize << homing
+        << fieldStrength << fieldRotation << thickness << tailLerpRate << saturation << value
+        << printTemperatureMinMax << printTemperature;
     gui.init();
 
     // DistributedApp provides a parameter server.
     // This links the parameters between "simulator" and "renderers"
     // automatically
-    parameterServer() << background /* << red */ << globalScale << moveRate
-                      << turnRate << speckSize << homing << fieldStrength
-                      << fieldRotation << thickness << tailLerpRate
+    parameterServer() << background /* << red */ << globalScale << moveRate << turnRate << speckSize
+                      << homing << fieldStrength << fieldRotation << thickness << tailLerpRate
                       << saturation << value;
 
     navControl().useMouse(false);
 
     // Load CSV data, initialize structs
     CSVReader temperatureData;
-    temperatureData.addType(CSVReader::REAL); // Date
-    temperatureData.addType(CSVReader::REAL); // Temperature (c)
+    temperatureData.addType(CSVReader::REAL);  // Date
+    temperatureData.addType(CSVReader::REAL);  // Temperature (c)
     temperatureData.readFile("../data/_TEMP.csv");
 
-    std::vector<Temperatures> tRows =
-        temperatureData.copyToStruct<Temperatures>();
+    std::vector<Temperatures> tRows = temperatureData.copyToStruct<Temperatures>();
     for (auto t : tRows) {
       heat.data.push_back(t);
     };
@@ -227,19 +231,18 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     tRows.clear();
 
     CSVReader bioDiversityData;
-    bioDiversityData.addType(CSVReader::REAL); // Name
-    bioDiversityData.addType(CSVReader::REAL); // Site
-    bioDiversityData.addType(CSVReader::REAL); // Date
-    bioDiversityData.addType(CSVReader::REAL); // Count
-    bioDiversityData.addType(CSVReader::REAL); // Transect
-    bioDiversityData.addType(CSVReader::REAL); // quad
-    bioDiversityData.addType(CSVReader::REAL); // Taxonomy | Phylum
-    bioDiversityData.addType(CSVReader::REAL); // Mobility
-    bioDiversityData.addType(CSVReader::REAL); // Growth_Morph
+    bioDiversityData.addType(CSVReader::REAL);  // Name
+    bioDiversityData.addType(CSVReader::REAL);  // Site
+    bioDiversityData.addType(CSVReader::REAL);  // Date
+    bioDiversityData.addType(CSVReader::REAL);  // Count
+    bioDiversityData.addType(CSVReader::REAL);  // Transect
+    bioDiversityData.addType(CSVReader::REAL);  // quad
+    bioDiversityData.addType(CSVReader::REAL);  // Taxonomy | Phylum
+    bioDiversityData.addType(CSVReader::REAL);  // Mobility
+    bioDiversityData.addType(CSVReader::REAL);  // Growth_Morph
     bioDiversityData.readFile("../data/_BIODIVERSE.csv");
 
-    std::vector<Biodiversities> bRows =
-        bioDiversityData.copyToStruct<Biodiversities>();
+    std::vector<Biodiversities> bRows = bioDiversityData.copyToStruct<Biodiversities>();
     for (auto b : bRows) {
       species[int(b.comName)].site[int(b.site)].data.push_back(b);
     };
@@ -250,22 +253,20 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     for (int i = 0; i < NUM_SPECIES; i++) {
       for (int j = 0; j < NUM_SITES; j++) {
         species[i].site[j].init();
-        species[i].site[j].update(c.now());
+        species[i].site[j].update(c.now() + 250);
       }
     }
 
-    currentTemp = heat.update(c.now());
+    currentTemp = heat.update(c.now() + 250);
     c.update();
 
     printTemperatureMinMax.set(toString(heat.min) + " - " + toString(heat.max));
 
     // Compile shaders
-    agentShader.compile(slurp("../paint-vertex.glsl"),
-                        slurp("../paint-fragment.glsl"),
+    agentShader.compile(slurp("../paint-vertex.glsl"), slurp("../paint-fragment.glsl"),
                         slurp("../paint-geometry.glsl"));
 
-    speckShader.compile(slurp("../speck-vertex.glsl"),
-                        slurp("../speck-fragment.glsl"),
+    speckShader.compile(slurp("../speck-vertex.glsl"), slurp("../speck-fragment.glsl"),
                         slurp("../speck-geometry.glsl"));
 
     // Create background sphere
@@ -274,9 +275,9 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     auto &col = backgroundSphere.colors();
     col.resize(verts);
     for (size_t i = 0; i < verts; i++) {
-      col[i].set(0.0f, 0.0f,
-                 (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-                     (BOUNDARY_RADIUS * background));
+      col[i].set(
+        0.0f, 0.0f,
+        (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) / (BOUNDARY_RADIUS * background));
       sphereDefaultVerts.push_back(backgroundSphere.vertices()[i]);
     }
 
@@ -363,6 +364,12 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vectorVis.color(1, 1, 1);
     vectorVis.vertex(0, 0, 0);
     vectorVis.vertex(0, 0, 0);
+
+    // to record, uncomment these lines and set the lentgh of the recording
+    // (note that the app will run very slowly while recording)
+
+    // rec.connectApp(this);
+    // rec.startRecordingOffline(300.0);
   }
 
   // variables for camera movement
@@ -385,7 +392,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       }
 
       // Camera movement behavior
-      float lerpAmt = fmod((cameraTime / 300.0), 1.0);
+      float lerpAmt = fmod((cameraTime / 300.0), 2.0);
       float deltaLerpAmt = lerpAmt - _lerpAmt;
       if (deltaLerpAmt < 0.0) {
         startPos = destPos;
@@ -393,6 +400,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       }
       Vec3f loc = startPos.lerp(destPos, lerpAmt / 24);
       nav().pos(loc);
+      nav().view(0, 0, 0);
       nav().faceToward(Vec3f(0.0, 0.0, 0.0));
       cameraTime++;
       _lerpAmt = lerpAmt;
@@ -400,7 +408,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       // Rotate force field vectors
       field.rotate(fieldRotation);
 
-      float currentTime = c.now();
+      float currentTime = c.now() + 250;
       currentTemp = heat.update(currentTime);
       // set temperature for use in color changing
       state().temperature = (currentTemp - heat.min) / (heat.max - heat.min);
@@ -419,7 +427,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           f.home = species[sp].site[si].origin;
           f.home.y -= 3;
 
-          if (sp != 16 && sp != 56) { // if species is not kelp
+          if (sp != 16 && sp != 56) {  // if species is not kelp
 
             // Reset agent quantities before calculating frame
             for (int i = 0; i < f.population; i++) {
@@ -436,9 +444,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
 
               // Flow field effect on agent
               if (withinBounds(field, f.agent[i].pos())) {
-                f.agent[i].acceleration +=
-                    field.grid.at(fieldIndex(field, f.agent[i].pos())) *
-                    ((float)fieldStrength / 1000);
+                f.agent[i].acceleration += field.grid.at(fieldIndex(field, f.agent[i].pos())) *
+                                           ((float)fieldStrength / 1000);
               } else {
                 f.agent[i].acceleration += -f.agent[i].pos().normalized() * 0.1;
               }
@@ -473,8 +480,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         // Acceleration due to flowfield
         if (withinBounds(field, state().speckPos[i])) {
           speckVelocities[i] +=
-              field.grid.at(fieldIndex(field, state().speckPos[i])) *
-              ((float)fieldStrength / 1000);
+            field.grid.at(fieldIndex(field, state().speckPos[i])) * ((float)fieldStrength / 1000);
         } else {
           speckVelocities[i] += -state().speckPos[i].normalized() * 0.1;
         }
@@ -488,9 +494,8 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
         if (i % TAIL_LENGTH != 0) {
           // Acceleration due to flowfield
           if (withinBounds(field, state().kelpVerts[i])) {
-            kelpVelocities[i] +=
-                field.grid.at(fieldIndex(field, state().kelpVerts[i])) *
-                ((float)fieldStrength / 10000);
+            kelpVelocities[i] += field.grid.at(fieldIndex(field, state().kelpVerts[i])) *
+                                 ((float)fieldStrength / 10000);
           } else {
             kelpVelocities[i] += -state().kelpVerts[i].normalized() * 0.1;
           }
@@ -498,8 +503,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
           // Structural integrity
           Vec3f diff = state().kelpVerts[i - 1] - state().kelpVerts[i];
           if (diff.mag() > KELP_LENGTH) {
-            kelpVelocities[i] +=
-                diff.normalized() * (diff.mag() - KELP_LENGTH) * 0.0001;
+            kelpVelocities[i] += diff.normalized() * (diff.mag() - KELP_LENGTH) * 0.0001;
           }
 
           // Drag
@@ -522,19 +526,17 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     // Set background color according to temperature
     float temp = state().temperature;
     for (size_t i = 0; i < backgroundSphere.vertices().size(); i++) {
-      backgroundSphere.colors()[i].set(
-          ((-backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) * temp /
-           (BOUNDARY_RADIUS * state().background)) *
-              0.5,
-          0,
-          (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
-              (BOUNDARY_RADIUS * state().background));
+      backgroundSphere.colors()[i].set(((-backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) *
+                                        temp / (BOUNDARY_RADIUS * state().background)) *
+                                         0.5,
+                                       0,
+                                       (backgroundSphere.vertices()[i].y + BOUNDARY_RADIUS) /
+                                         (BOUNDARY_RADIUS * state().background));
     }
 
     // Set sphere position
     for (int i = 0; i < backgroundSphere.vertices().size(); i++) {
-      backgroundSphere.vertices()[i] =
-          sphereDefaultVerts[i] * state().globalScale;
+      backgroundSphere.vertices()[i] = sphereDefaultVerts[i] * state().globalScale;
     }
 
     // Set speck position
@@ -548,50 +550,40 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     vector<Vec3f> &n(agents.normals());
     vector<Color> &c(agents.colors());
 
-    for (int iFlock = 0; iFlock < FLOCK_COUNT; iFlock++) { // for each flock
+    for (int iFlock = 0; iFlock < FLOCK_COUNT; iFlock++) {  // for each flock
       int sp = iFlock / NUM_SITES;
       Flock &f(flock[iFlock]);
-      int flockStartIndex =
-          iFlock * FLOCK_SIZE; // index of first agent in flock
+      int flockStartIndex = iFlock * FLOCK_SIZE;  // index of first agent in flock
       for (int iAgent = flockStartIndex; iAgent < flockStartIndex + FLOCK_SIZE;
-           iAgent++) {                         // for each agent
-        int headVertex = iAgent * TAIL_LENGTH; // head vertex of agent
+           iAgent++) {                          // for each agent
+        int headVertex = iAgent * TAIL_LENGTH;  // head vertex of agent
 
-        if (iAgent - flockStartIndex <
-            flock[iFlock].population) { // if agent is alive
+        if (iAgent - flockStartIndex < flock[iFlock].population) {  // if agent is alive
           // for body of each agent, counting down from its tail
-          for (int segmentVertex = headVertex + TAIL_LENGTH - 1;
-               segmentVertex >= headVertex;
-               segmentVertex--) { // for each vertex
+          for (int segmentVertex = headVertex + TAIL_LENGTH - 1; segmentVertex >= headVertex;
+               segmentVertex--) {  // for each vertex
             if (sp != 16 && sp != 56) {
-              if (t[segmentVertex].y !=
-                  1) { // if not a head segment, follow head
+              if (t[segmentVertex].y != 1) {  // if not a head segment, follow head
                 if (t[segmentVertex].x == 0) {
-                  v[segmentVertex].set(state().agent[iAgent].position *
-                                       state().globalScale);
+                  v[segmentVertex].set(state().agent[iAgent].position * state().globalScale);
                 } else {
-                  v[segmentVertex].lerp(v[segmentVertex - 1], tailLerpRate) *
-                      state().globalScale;
+                  v[segmentVertex].lerp(v[segmentVertex - 1], tailLerpRate) * state().globalScale;
                 }
                 c[segmentVertex] = HSV(f.hue, 1 - state().temperature, value);
                 c[segmentVertex].a =
-                    0.6 -
-                    ((state().agent[iAgent].position - state().cameraPose.pos())
-                         .mag() /
-                     BOUNDARY_RADIUS) *
-                        0.6;
+                  0.6 - ((state().agent[iAgent].position - state().cameraPose.pos()).mag() /
+                         BOUNDARY_RADIUS) *
+                          0.6;
               }
 
-              if (t[segmentVertex].y == 1) { // if head, lead the way
-                v[segmentVertex].set(state().agent[iAgent].position *
-                                     state().globalScale);
+              if (t[segmentVertex].y == 1) {  // if head, lead the way
+                v[segmentVertex].set(state().agent[iAgent].position * state().globalScale);
               }
             }
             t[segmentVertex].x = 1.0f;
           }
-          n[iAgent * TAIL_LENGTH] =
-              -state().agent[iAgent].orientation.toVectorZ();
-        } else { // if agent is dead
+          n[iAgent * TAIL_LENGTH] = -state().agent[iAgent].orientation.toVectorZ();
+        } else {  // if agent is dead
           for (int i = headVertex; i < headVertex + TAIL_LENGTH; i++) {
             t[i].x = 0.0f;
           }
@@ -605,16 +597,13 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
       v[segmentVertex].set(state().kelpVerts[i] * state().globalScale);
       c[segmentVertex] = HSV(0.3, 1 - state().temperature, 0.5);
       c[segmentVertex].a =
-          0.4 - ((state().kelpVerts[i] - state().cameraPose.pos()).mag() /
-                 BOUNDARY_RADIUS) *
-                    0.4;
+        0.4 - ((state().kelpVerts[i] - state().cameraPose.pos()).mag() / BOUNDARY_RADIUS) * 0.4;
       segmentVertex++;
       if (segmentVertex == (17 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES))
         segmentVertex = 56 * FLOCK_SIZE * TAIL_LENGTH * NUM_SITES;
     }
 
-    vectorVis.vertices()[1].set(
-        field.grid[1]); // add vector to be visualized here
+    vectorVis.vertices()[1].set(field.grid[1]);  // add vector to be visualized here
   };
 
   void onDraw(Graphics &g) override {
@@ -638,7 +627,7 @@ struct AlloApp : public DistributedAppWithState<SharedState> {
     g.draw(specks);
 
     if (cuttleboneDomain->isSender()) {
-      gui.draw(g);
+      // gui.draw(g);
     }
   }
 };
@@ -657,8 +646,7 @@ string slurp(string fileName) {
   return returnValue;
 }
 
-float scale(float value, float inLow, float inHigh, float outLow, float outHigh,
-            float curve) {
+float scale(float value, float inLow, float inHigh, float outLow, float outHigh, float curve) {
   float normValue = (value - inLow) / (inHigh - inLow);
   if (curve == 1) {
     return normValue * (outHigh - outLow) + outLow;

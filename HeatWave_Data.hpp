@@ -26,11 +26,11 @@ using namespace std;
 #define TIME_MOD 1
 
 typedef struct {  // Struct for a single Temperature datapoint
-    double date, temp;
+  double date, temp;
 } Temperatures;
 
 typedef struct {  // Struct for a single Biodiversity datapoint
-    double comName, site, date, count, transect, quad, taxPhylum, mobility, growth;
+  double comName, site, date, count, transect, quad, taxPhylum, mobility, growth;
 } Biodiversities;
 
 //  ----------------------------------------------------------------------------------------------------------------------------------
@@ -38,68 +38,68 @@ typedef struct {  // Struct for a single Biodiversity datapoint
 //  ----------------------------------------------------------------------------------------------------------------------------------
 
 struct Site {
-    vector<Biodiversities> data;
-    float currentCount, max, min, ave, site, taxPhylum, mobility, growth;
-    Vec3f origin;
+  vector<Biodiversities> data;
+  float currentCount, max, min, ave, site, taxPhylum, mobility, growth;
+  Vec3f origin;
 
-    void init() {
-        if (data.size() > 0) {
-            min = 10000;
-            max = 0;
-            for (int i = 0; i < data.size(); i++) {
-                ave += data[i].count;
-                if (data[i].count > max) {
-                    max = data[i].count;
-                };
-                if (data[i].count < min) {
-                    min = data[i].count;
-                };
-            }
-            ave /= data.size();
-        } else if (data.size() <= 0) {
-            min = 0;
-            max = 0;
-            ave = 0;
-            origin = Vec3f(0, 0, 0);
-        }
+  void init() {
+    if (data.size() > 0) {
+      min = 10000;
+      max = 0;
+      for (int i = 0; i < data.size(); i++) {
+        ave += data[i].count;
+        if (data[i].count > max) {
+          max = data[i].count;
+        };
+        if (data[i].count < min) {
+          min = data[i].count;
+        };
+      }
+      ave /= data.size();
+    } else if (data.size() <= 0) {
+      min = 0;
+      max = 0;
+      ave = 0;
+      origin = Vec3f(0, 0, 0);
     }
+  }
 
-    void printAve() { std::cout << "Average: " << ave << std::endl; }
-    void printMax() { std::cout << "Maximum: " << max << std::endl; }
-    void printMin() { std::cout << "Minimum: " << min << std::endl; }
+  void printAve() { std::cout << "Average: " << ave << std::endl; }
+  void printMax() { std::cout << "Maximum: " << max << std::endl; }
+  void printMin() { std::cout << "Minimum: " << min << std::endl; }
 
-    void update(float time) {
-        if (data.size() > 0) {
-            float d;
-            float k = int(time * TIME_MOD) % data.size();
-            float fract = fmodf(time * TIME_MOD, 1.0);
+  void update(float time) {
+    if (data.size() > 0) {
+      float d;
+      float k = int(time * TIME_MOD) % data.size();
+      float fract = fmodf(time * TIME_MOD, 1.0);
 
-            float countDiff = data[k + 1].count - data[k].count;  // Species Count
-            currentCount = ceil((data[k].count + countDiff * fract) / 100.0);
-            if (currentCount > 10) {
-                currentCount = 10;
-                // d = currentCount / (max - 25);
-                // currentCount = int((d * 25) + 50);
-            }
+      float countDiff = data[k + 1].count - data[k].count;  // Species Count
+      currentCount = ceil((data[k].count + countDiff * fract) / 100.0);
+      if (currentCount > 10) {
+        currentCount = 10;
+        // d = currentCount / (max - 25);
+        // currentCount = int((d * 25) + 50);
+      }
 
-            float rDiff = data[k + 1].transect - data[k].transect;  // Origin Radius
-            float r = data[k].transect + rDiff * fract;
+      float rDiff = data[k + 1].transect - data[k].transect;  // Origin Radius
+      float r = data[k].transect + rDiff * fract;
 
-            float x = r * cos((data[k].site / 11.0) * M_2PI);  // Origin X-Position
-            float z = r * sin((data[k].site / 11.0) * M_2PI);  // Origin Z-Position
+      float x = r * cos((data[k].site / 11.0) * M_2PI);  // Origin X-Position
+      float z = r * sin((data[k].site / 11.0) * M_2PI);  // Origin Z-Position
 
-            float yDiff = data[k + 1].quad - data[k].quad;  // Origin Y-Position
-            float y = data[k].quad + yDiff * fract;
+      float yDiff = data[k + 1].quad - data[k].quad;  // Origin Y-Position
+      float y = data[k].quad + yDiff * fract;
 
-            origin.x = x;
-            origin.y = y;
-            origin.z = z;
-        }
+      origin.x = x;
+      origin.y = y;
+      origin.z = z;
     }
+  }
 };
 
 struct Species {
-    Site site[11];
+  Site site[11];
 };
 
 //  ----------------------------------------------------------------------------------------------------------------------------------
@@ -107,34 +107,34 @@ struct Species {
 //  ----------------------------------------------------------------------------------------------------------------------------------
 
 struct Heat {
-    vector<Temperatures> data;
-    float currentTemp, ave, min, max;
+  vector<Temperatures> data;
+  float currentTemp, ave, min, max;
 
-    void init() {
-        min = data[0].temp;
-        max = data[0].temp;
-        for (int i = 0; i < data.size(); i++) {
-            ave += data[i].temp;
-            if (data[i].temp > max) {
-                max = data[i].temp;
-            };
-            if (data[i].temp < min) {
-                min = data[i].temp;
-            };
-        }
-        ave /= data.size();
+  void init() {
+    min = data[0].temp;
+    max = data[0].temp;
+    for (int i = 0; i < data.size(); i++) {
+      ave += data[i].temp;
+      if (data[i].temp > max) {
+        max = data[i].temp;
+      };
+      if (data[i].temp < min) {
+        min = data[i].temp;
+      };
     }
+    ave /= data.size();
+  }
 
-    void printAve() { std::cout << "Average: " << ave << std::endl; }
-    void printMax() { std::cout << "Maximum: " << max << std::endl; }
-    void printMin() { std::cout << "Minimum: " << min << std::endl; }
+  void printAve() { std::cout << "Average: " << ave << std::endl; }
+  void printMax() { std::cout << "Maximum: " << max << std::endl; }
+  void printMin() { std::cout << "Minimum: " << min << std::endl; }
 
-    float update(float time) {
-        float diff = (data[int(time * TIME_MOD) + 1].temp - data[int(time * TIME_MOD)].temp);
-        float fract = fmodf(time * TIME_MOD, 1.0);
-        currentTemp = data[time * TIME_MOD].temp + diff * fract;
-        return currentTemp;
-    }
+  float update(float time) {
+    float diff = (data[int(time * TIME_MOD) + 1].temp - data[int(time * TIME_MOD)].temp);
+    float fract = fmodf(time * TIME_MOD, 1.0);
+    currentTemp = data[time * TIME_MOD].temp + diff * fract;
+    return currentTemp;
+  }
 };
 
 // Heat heat; // May need to create this onCreate
